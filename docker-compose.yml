@@ -1,0 +1,10 @@
+services:
+  ha-temp-compare:
+    build: .
+    container_name: ha-temp-compare
+    env_file: .env
+    ports:
+      - "8085:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # lets HA_URL point at the Docker host
+    restart: unless-stopped
