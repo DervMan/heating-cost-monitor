@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Home Temperatures</title>
-<script src="static/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
 <style>
 :root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#667085;--border:#e3e6eb;--accent:#0a7d5a;--before:#8a94a6;--after:#0a7d5a;--warn:#b54708}
 @media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--text:#e6e9ef;--muted:#98a2b3;--border:#2c333f;--accent:#3ccf9a;--before:#7c8597;--after:#3ccf9a;--warn:#f79009}}
@@ -13,12 +13,11 @@ body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-a
 header{padding:20px 24px 0;max-width:1400px;margin:auto}
 h1{font-size:22px;margin:0 0 4px}
 .sub{color:var(--muted);margin:0}
-main{max-width:1400px;margin:auto;padding:16px 24px 40px;display:grid;grid-template-columns:260px minmax(0,1fr);gap:20px}
+main{max-width:1400px;margin:auto;padding:16px 24px 40px;display:grid;grid-template-columns:260px 1fr;gap:20px}
 @media (max-width:860px){main{grid-template-columns:1fr;padding:16px}}
 .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
 aside h2,section h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px}
 .sensor{display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:14px;cursor:pointer}
-.sensor span{min-width:0;overflow-wrap:anywhere}
 .sensor small{display:block;color:var(--muted);font-size:11px;word-break:break-all}
 .tag{font-size:10px;background:var(--border);border-radius:4px;padding:1px 5px;margin-left:4px}
 .tabs{display:flex;gap:6px;margin-bottom:12px}
@@ -44,6 +43,10 @@ th{color:var(--muted);font-weight:500;font-size:12px}
 .hidden{display:none}
 .note{color:var(--muted);font-size:13px}
 .table-wrap{overflow-x:auto}
+.controls input[type=number]{width:110px}
+.sect{margin:18px 0 8px}
+.stat .sub{color:var(--muted);font-size:12px;margin-top:2px}
+.stat .v.big{font-size:22px}
 </style>
 </head>
 <body>
@@ -61,6 +64,7 @@ th{color:var(--muted);font-weight:500;font-size:12px}
     <div class="tabs">
       <button data-tab="timeline" class="active">12-month timeline</button>
       <button data-tab="compare">Before vs after</button>
+      <button data-tab="energy">Energy &amp; cost</button>
     </div>
 
     <div id="tab-timeline" class="card">
@@ -92,13 +96,34 @@ th{color:var(--muted);font-weight:500;font-size:12px}
       <h2 style="margin-top:16px">Monthly averages</h2>
       <div class="table-wrap"><table id="c-table"></table></div>
     </div>
+
+    <div id="tab-energy" class="card hidden">
+      <div class="controls">
+        <label>Split date (install) <input type="date" id="e-split"></label>
+        <label>Electricity rate (p/kWh) <input type="number" step="0.01" min="0" id="e-erate"></label>
+        <label>Gas rate (p/kWh) <input type="number" step="0.01" min="0" id="e-grate"></label>
+      </div>
+      <p class="note" id="e-note"></p>
+      <div id="e-setup" class="note hidden"></div>
+      <div id="e-body">
+        <h2 class="sect">Baseline: 12 months before install</h2>
+        <div class="stats" id="e-base"></div>
+        <h2 class="sect">After vs the same days last year</h2>
+        <div class="stats" id="e-after"></div>
+        <div id="energy-monthly" class="plot"></div>
+        <div id="energy-cum" class="plot"></div>
+        <div id="energy-daily" class="plot"></div>
+        <h2 class="sect">Monthly detail</h2>
+        <div class="table-wrap"><table id="e-table"></table></div>
+      </div>
+    </div>
   </section>
 </main>
 
 <script>
 const $ = s => document.querySelector(s);
 let CFG = null;
-const iso = d => d.toISOString().slice(0, 10);
+const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const addYears = (d, n) => { const x = new Date(d); x.setFullYear(x.getFullYear() + n); return x; };
 const mean = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
@@ -261,18 +286,185 @@ async function drawCompare() {
   } catch (e) { showError('Could not load data: ' + e.message); }
 }
 
+/* ---------- Energy & cost ---------- */
+const HDD_BASE = 15.5;                       // degree-day base temperature
+const RATES_KEY = 'ha-energy-rates';
+let energyCache = null;
+const prevYear = t => `${+t.slice(0, 4) - 1}${t.slice(4)}`;
+const gbp = (v, dp = 0) => v == null ? '–' : (v < 0 ? '-' : '') + '£' + Math.abs(v).toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+const sumOf = a => a.reduce((s, v) => s + v, 0);
+
+function dayMap(data, ids) {
+  const m = {};
+  ids.forEach(id => (data[id] || []).forEach(r => { m[r.t] = (m[r.t] || 0) + r.kwh; }));
+  return m;
+}
+
+async function loadEnergy(split) {
+  const key = iso(split);
+  if (energyCache && energyCache.key === key) return energyCache;
+  const bStart = addYears(split, -1), aEnd = addYears(split, 1);
+  const ids = [...CFG.electricity_sensors, ...CFG.gas_sensors];
+  const [en, temp] = await Promise.all([
+    api(`api/energy?ids=${encodeURIComponent(ids.join(','))}&start=${iso(bStart)}&end=${iso(aEnd)}&period=day`),
+    CFG.outdoor_sensor ? getStats([CFG.outdoor_sensor], iso(bStart), iso(aEnd), 'day') : Promise.resolve({}),
+  ]);
+  energyCache = {
+    key,
+    elec: dayMap(en, CFG.electricity_sensors),
+    gas: dayMap(en, CFG.gas_sensors),
+    out: Object.fromEntries((temp[CFG.outdoor_sensor] || []).map(r => [r.t, r.mean])),
+  };
+  return energyCache;
+}
+
+async function drawEnergy() {
+  const noSensors = !CFG.electricity_sensors.length && !CFG.gas_sensors.length;
+  $('#e-setup').classList.toggle('hidden', !noSensors);
+  $('#e-body').classList.toggle('hidden', noSensors);
+  if (noSensors) {
+    const c = CFG.energy_candidates || [];
+    $('#e-setup').innerHTML = 'Set <code>ELECTRICITY_SENSORS</code> and <code>GAS_SENSORS</code> in <code>.env</code> (comma separated) and restart. ' +
+      (c.length ? 'Energy/gas meters with long-term statistics that I found:<br>' + c.map(x => `<code>${x.id}</code> (${x.name})`).join('<br>') : 'No energy or gas meters with long-term statistics were found.');
+    return;
+  }
+  try {
+    showError('');
+    await loadEnergy(new Date($('#e-split').value + 'T00:00:00'));
+    renderEnergy();
+  } catch (e) { showError('Could not load energy data: ' + e.message); }
+}
+
+function saveRates() {
+  try { localStorage.setItem(RATES_KEY, JSON.stringify({ e: $('#e-erate').value, g: $('#e-grate').value })); } catch (_) {}
+  if (energyCache && activeTab() === 'energy') renderEnergy();
+}
+
+function renderEnergy() {
+  const { elec, gas, out } = energyCache;
+  const split = new Date($('#e-split').value + 'T00:00:00'), splitStr = iso(split);
+  const bStartStr = iso(addYears(split, -1));
+  const rate = id => (parseFloat($(id).value) || 0) / 100;
+  const fuels = [];
+  if (CFG.electricity_sensors.length) fuels.push({ name: 'Electricity', map: elec, rate: rate('#e-erate'), col: '#2e90fa' });
+  if (CFG.gas_sensors.length) fuels.push({ name: 'Gas', map: gas, rate: rate('#e-grate'), col: '#f79009' });
+  const inBefore = t => t >= bStartStr && t < splitStr, inAfter = t => t >= splitStr;
+  const days = (f, pred) => Object.keys(f.map).filter(pred).sort();
+
+  if (fuels.every(f => !Object.keys(f.map).length)) {
+    showError('No long-term statistics came back for the configured energy sensors. Check Developer tools → Statistics in Home Assistant.');
+  }
+
+  // days where every fuel has data both now and a year earlier, so comparisons are like for like
+  const matched = [...new Set(fuels.flatMap(f => days(f, inAfter)))].sort()
+    .filter(t => fuels.every(f => f.map[t] != null && f.map[prevYear(t)] != null));
+
+  $('#e-note').textContent = `Costs use the rates above for both years, so differences reflect usage rather than price changes. Standing charges are excluded. ` +
+    (matched.length ? `Comparing ${matched.length} days since ${splitStr} against the same dates a year earlier.` : `Baseline: ${bStartStr} → ${iso(addDays(split, -1))}. The comparison appears once data arrives after ${splitStr}.`);
+
+  const stat = (k, v, sub = '') => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+  const dl = (a, b, text) => { const d = a - b; return `<span class="${d <= 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${text(d)}</span>`; };
+
+  // ---- baseline cards (full 12 months before) ----
+  const base = fuels.map(f => { const d = days(f, inBefore); return { f, d, kwh: sumOf(d.map(t => f.map[t])) }; });
+  const spanDays = Math.round((split - addYears(split, -1)) / 864e5);
+  $('#e-base').innerHTML = base.map(b =>
+      stat(`${b.f.name} (baseline)`, `${fmt(b.kwh, 0)} kWh`, `${gbp(b.kwh * b.f.rate)} · ${b.d.length}/${spanDays} days with data`)).join('') +
+    stat('Total baseline cost', gbp(sumOf(base.map(b => b.kwh * b.f.rate))), 'at the rates above') +
+    (base.find(b => b.f.name === 'Electricity') && base.find(b => b.f.name === 'Electricity').d.length
+      ? stat('Avg daily electricity', `${fmt(base.find(b => b.f.name === 'Electricity').kwh / base.find(b => b.f.name === 'Electricity').d.length, 1)} kWh`, 'the figure to watch after install') : '');
+
+  // ---- after vs same days last year ----
+  const A = f => sumOf(matched.map(t => f.map[t])), B = f => sumOf(matched.map(t => f.map[prevYear(t)]));
+  if (matched.length) {
+    const costA = sumOf(fuels.map(f => A(f) * f.rate)), costB = sumOf(fuels.map(f => B(f) * f.rate));
+    const kwhA = sumOf(fuels.map(A)), kwhB = sumOf(fuels.map(B));
+    const m2 = matched.filter(t => out[t] != null && out[prevYear(t)] != null);
+    const hdd = (ts, sh) => sumOf(ts.map(t => Math.max(0, HDD_BASE - out[sh ? prevYear(t) : t])));
+    const hA = hdd(m2, false), hB = hdd(m2, true);
+    const perHdd = (sh, h) => h > 20 ? sumOf(fuels.map(f => sumOf(m2.map(t => f.map[sh ? prevYear(t) : t])))) / h : null;
+    const pA = perHdd(false, hA), pB = perHdd(true, hB);
+    const net = costB - costA;
+    $('#e-after').innerHTML =
+      fuels.map(f => stat(`${f.name}, ${matched.length} days`, `${fmt(B(f), 0)} → ${fmt(A(f), 0)} kWh ${dl(A(f), B(f), d => d.toFixed(0))}`, `${gbp(B(f) * f.rate)} → ${gbp(A(f) * f.rate)}`)).join('') +
+      stat('Total cost', `${gbp(costB)} → ${gbp(costA)} ${dl(costA, costB, d => gbp(d))}`) +
+      stat('Net saving so far', `<span class="${net >= 0 ? 'up' : 'down'}">${gbp(net)}</span>`, net >= 0 ? 'cheaper than the same days last year' : 'dearer than the same days last year') +
+      stat('Total energy', `${fmt(kwhB, 0)} → ${fmt(kwhA, 0)} kWh ${dl(kwhA, kwhB, d => d.toFixed(0))}`) +
+      stat('Energy per degree-day', pA == null || pB == null ? '–' : `${fmt(pB, 1)} → ${fmt(pA, 1)} kWh ${dl(pA, pB, d => d.toFixed(1))}`,
+        pA == null ? 'needs colder days and an outdoor sensor' : `weather-adjusted, base ${HDD_BASE}${CFG.unit}`);
+  } else {
+    $('#e-after').innerHTML = stat('Waiting for post-install data', '…', `fills in automatically from ${splitStr}`);
+  }
+
+  // ---- monthly stacked cost ----
+  const mIdx = (t, origin) => { const d = new Date(t + 'T00:00:00'); return (d.getFullYear() - origin.getFullYear()) * 12 + d.getMonth() - origin.getMonth(); };
+  const labels = [...Array(12)].map((_, i) => new Date(split.getFullYear(), split.getMonth() + i, 1).toLocaleString('en-GB', { month: 'short' }));
+  const monthly = (map, origin, pred) => {
+    const sum = Array(12).fill(0), n = Array(12).fill(0);
+    Object.keys(map).forEach(t => { if (!pred(t)) return; const i = mIdx(t, origin); if (i >= 0 && i < 12) { sum[i] += map[t]; n[i]++; } });
+    return { sum, n };
+  };
+  const mB = fuels.map(f => monthly(f.map, addYears(split, -1), inBefore));
+  const mA = fuels.map(f => monthly(f.map, split, inAfter));
+  const mTraces = [];
+  fuels.forEach((f, k) => mTraces.push({ type: 'bar', x: labels, y: mB[k].sum.map(v => v * f.rate), name: `${f.name} – before`, offsetgroup: 'before',
+    marker: { color: f.col, opacity: 0.45 }, customdata: labels.map((_, i) => [mB[k].sum[i], mB[k].n[i]]), hovertemplate: '£%{y:.2f} (%{customdata[0]:.0f} kWh, %{customdata[1]} days)' }));
+  fuels.forEach((f, k) => mTraces.push({ type: 'bar', x: labels, y: mA[k].sum.map((v, i) => mA[k].n[i] ? v * f.rate : null), name: `${f.name} – after`, offsetgroup: 'after',
+    marker: { color: f.col }, customdata: labels.map((_, i) => [mA[k].sum[i], mA[k].n[i]]), hovertemplate: '£%{y:.2f} (%{customdata[0]:.0f} kWh, %{customdata[1]} days)' }));
+  Plotly.react('energy-monthly', mTraces, baseLayout({ title: { text: 'Monthly cost (latest month may be partial)', font: { size: 14 } }, barmode: 'stack',
+    yaxis: { gridcolor: css('--border'), title: '£ per month', zeroline: false } }), { responsive: true, displaylogo: false });
+
+  // ---- cumulative cost on matched days ----
+  $('#energy-cum').classList.toggle('hidden', !matched.length);
+  if (matched.length) {
+    let cb = 0, ca = 0; const yb = [], ya = [];
+    matched.forEach(t => {
+      cb += sumOf(fuels.map(f => f.map[prevYear(t)] * f.rate)); ca += sumOf(fuels.map(f => f.map[t] * f.rate));
+      yb.push(cb); ya.push(ca);
+    });
+    Plotly.react('energy-cum', [
+      { x: matched, y: yb, name: 'Same days last year', mode: 'lines', line: { color: css('--before'), width: 2.5 } },
+      { x: matched, y: ya, name: 'After install', mode: 'lines', line: { color: css('--after'), width: 2.5 } },
+    ], baseLayout({ title: { text: 'Cumulative cost since install (days with data in both years)', font: { size: 14 } },
+      yaxis: { gridcolor: css('--border'), title: '£', zeroline: false } }), { responsive: true, displaylogo: false });
+  }
+
+  // ---- daily kWh overlay, 7-day rolling ----
+  const roll = (ts, map, n = 7) => ts.map((t, i) => { const w = ts.slice(Math.max(0, i - n + 1), i + 1).map(x => map[x]); return mean(w); });
+  const dTraces = [];
+  fuels.forEach(f => {
+    const tb = days(f, inBefore), ta = days(f, inAfter);
+    dTraces.push({ x: tb, y: roll(tb, f.map), name: `${f.name} – before`, mode: 'lines', line: { color: f.col, width: 2, dash: 'dot' }, opacity: 0.7 });
+    dTraces.push({ x: ta.map(prevYear), y: roll(ta, f.map), name: `${f.name} – after`, mode: 'lines', line: { color: f.col, width: 2.5 },
+      customdata: ta, hovertemplate: '%{customdata}: %{y:.1f} kWh/day' });
+  });
+  Plotly.react('energy-daily', dTraces, baseLayout({ title: { text: 'Daily energy use, 7-day average, year over year (kWh/day)', font: { size: 14 } },
+    xaxis: { tickformat: '%b', dtick: 'M1', gridcolor: css('--border') }, yaxis: { gridcolor: css('--border'), title: 'kWh/day', zeroline: false } }), { responsive: true, displaylogo: false });
+
+  // ---- table ----
+  const head = `<tr><th>Month</th>${fuels.map(f => `<th>${f.name} before (kWh)</th><th>${f.name} after (kWh)</th>`).join('')}<th>Cost before</th><th>Cost after</th><th>Change</th><th>Days (b/a)</th></tr>`;
+  const rows = labels.map((m, i) => {
+    const cb = sumOf(fuels.map((f, k) => mB[k].sum[i] * f.rate)), ca = sumOf(fuels.map((f, k) => mA[k].sum[i] * f.rate));
+    const hasA = mA[0].n[i] > 0;
+    return `<tr><td>${m}</td>${fuels.map((f, k) => `<td>${fmt(mB[k].sum[i], 0)}</td><td>${hasA ? fmt(mA[k].sum[i], 0) : '–'}</td>`).join('')}` +
+      `<td>${gbp(cb)}</td><td>${hasA ? gbp(ca) : '–'}</td><td>${hasA ? `<span class="${ca <= cb ? 'up' : 'down'}">${ca - cb > 0 ? '+' : ''}${gbp(ca - cb)}</span>` : '–'}</td><td>${mB[0].n[i]}/${mA[0].n[i]}</td></tr>`;
+  });
+  $('#e-table').innerHTML = head + rows.join('');
+}
+
 /* ---------- init ---------- */
 function activeTab() { return document.querySelector('.tabs .active').dataset.tab; }
-function redraw() { activeTab() === 'timeline' ? drawTimeline() : drawCompare(); }
+function redraw() { ({ timeline: drawTimeline, compare: drawCompare, energy: drawEnergy })[activeTab()](); }
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
-  $('#tab-timeline').classList.toggle('hidden', b.dataset.tab !== 'timeline');
-  $('#tab-compare').classList.toggle('hidden', b.dataset.tab !== 'compare');
+  ['timeline', 'compare', 'energy'].forEach(n => $('#tab-' + n).classList.toggle('hidden', b.dataset.tab !== n));
   redraw();
 });
 ['#t-start', '#t-end', '#t-period', '#t-avg', '#t-rooms', '#t-band'].forEach(s => $(s).onchange = drawTimeline);
 ['#c-split', '#c-series'].forEach(s => $(s).onchange = drawCompare);
+$('#e-split').onchange = drawEnergy;
+['#e-erate', '#e-grate'].forEach(s => $(s).oninput = saveRates);
 
 (async () => {
   try {
@@ -291,6 +483,11 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   $('#t-end').value = iso(today);
   $('#t-start').value = iso(addYears(today, -1));
   $('#c-split').value = CFG.install_date || iso(today);
+  $('#e-split').value = CFG.install_date || iso(today);
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(RATES_KEY) || '{}'); } catch (_) {}
+  $('#e-erate').value = saved.e ?? (CFG.elec_rate_p || '');
+  $('#e-grate').value = saved.g ?? (CFG.gas_rate_p || '');
   refreshSeriesSelect();
   drawTimeline();
 })();

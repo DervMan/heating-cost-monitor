@@ -43,6 +43,26 @@ If HA runs on the same machine as Docker, set `HA_URL=http://host.docker.interna
   overlay, and a monthly table. The "after" year fills in automatically as data
   arrives.
 
+## Energy & cost tab
+
+Tracks electricity and gas use so you can see the real cost difference once the
+air-to-air is in.
+
+- **Baseline** – the 12 months before the install date: kWh and cost per fuel,
+  plus average daily electricity (the number to watch after install).
+- **After vs same days last year** – only days with data in both years are
+  compared. Shows kWh and £ per fuel, net saving, and energy per heating
+  degree-day (base 15.5 °C) so a colder winter doesn't distort the result.
+- Monthly stacked cost, cumulative cost since install, a 7-day-average daily
+  overlay, and a monthly table.
+
+Setup: set `ELECTRICITY_SENSORS`, `GAS_SENSORS`, `ELEC_RATE_P` and `GAS_RATE_P`
+in `.env`. If the sensors are left blank the tab lists the candidate meters it
+finds. Gas meters reporting m³ are converted with `GAS_KWH_PER_M3`. Rates can be
+changed live in the tab (remembered in your browser). The same rates apply to
+both years, so the comparison reflects usage, not tariff changes. Standing
+charges are excluded. Extra endpoints: `/api/energy` and `/api/energy.csv`.
+
 ## Notes
 
 - Only sensors with `state_class: measurement` get long-term statistics. tado's
