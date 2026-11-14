@@ -1,73 +1,63 @@
-# Home temperature comparison (Home Assistant + Docker)
+# Heating Cost Tracker
 
-A small web dashboard that graphs 12 months of indoor temperature from your
-Home Assistant sensors and compares the year **before** your air-to-air install
-with the year **after**.
+Compares what heating costs you with the gas boiler against the Panasonic air-to-air system, adjusted for the weather, at today's prices. It runs as one Docker container next to Home Assistant.
 
-It reads HA's *long-term statistics* (hourly mean/min/max that the recorder keeps
-forever), so it works even though normal history is purged after 10 days.
+## Data sources
+
+| Source | What it gives | Notes |
+|---|---|---|
+| OVO account | Daily electricity and gas kWh, plus OVO's daily unit rates and standing charges | Uses the community `ovoenergy` library (OVO's unofficial API). Backfills from `backfill_from`. |
+| Home Assistant | Air-to-air kWh, indoor temperature, and later solar and export | Reads long-term statistics, so it backfills as far as HA has data. |
+| CSV import | Anything OVO or HA can't provide | Upload from the dashboard. Half-hourly files are summed into days. |
+| Open-Meteo | Daily outdoor temperature for your location | Free, no key needed. |
+
+If more than one source has the same value, the order in `source_priority` decides which one is used.
 
 ## Setup
 
-1. **Create a token** in Home Assistant: your profile → *Security* →
-   *Long-lived access tokens* → *Create token*.
-2. **Find your sensor IDs**: *Developer tools → States*, filter on `temperature`.
-   The tado room sensors usually look like `sensor.<room>_temperature`, and
-   tado also exposes `sensor.<home>_outdoor_temperature`.
-3. **Check they have history**: *Developer tools → Statistics*. Anything listed
-   there has long-term data and will appear in the dashboard.
-4. Copy the config and fill it in:
-   ```bash
-   cp .env.example .env
-   ```
-   - `SENSORS` – the tado rooms you want ticked by default
-   - `OUTDOOR_SENSOR` – outdoor temperature, for context (a colder winter skews any comparison)
-   - `EXCLUDE=meross` – hides the Meross sensors
-   - `INSTALL_DATE` – when the air-to-air goes live; this is the before/after split
-5. Start it:
-   ```bash
-   docker compose up -d --build
-   ```
-6. Open **http://<docker-host>:8085**
+1. Copy `.env.example` to `.env` and add your OVO login and a Home Assistant long-lived token.
+2. Copy `config/config.example.yaml` to `config/config.yaml` and edit it. At minimum, set `heating_switch_date`, `location` and current `tariffs`.
+3. Run `docker compose up -d --build`, then open `http://<host>:8099`.
 
-If HA runs on the same machine as Docker, set `HA_URL=http://host.docker.internal:8123`.
+The first sync backfills about 15 months, which takes a minute or two. After that it syncs every 6 hours, or when you click **Sync now**.
 
-## What you get
+To show it inside Home Assistant, add a **Webpage** dashboard card pointing at `http://<host>:8099`.
 
-- **12-month timeline** – daily (or weekly/monthly/hourly) mean per room, a bold
-  house average, optional min/max bands, the outdoor temperature, and a marker
-  on the install date. CSV download included.
-- **Before vs after** – 12 months either side of the install date:
-  summary cards (average indoor/outdoor, indoor-outdoor gap, coldest day,
-  days below 18 °C), monthly bars with outdoor lines, a year-over-year daily
-  overlay, and a monthly table. The "after" year fills in automatically as data
-  arrives.
+## Panasonic air-to-air metering
 
-## Energy & cost tab
+Everything depends on knowing the air-to-air's own electricity use. There are two options:
 
-Tracks electricity and gas use so you can see the real cost difference once the
-air-to-air is in.
+1. **Panasonic Comfort Cloud.** Install the `panasonic_cc` HACS integration and tick *Enable daily energy sensors*. It creates *Daily Heating Energy* and *Daily Cooling Energy* sensors for each unit. Put the heating sensors under `ac` and the cooling sensors under `ac_cooling`. If the sensors have no `state_class` (check in Developer tools > Statistics), use `mode: daily_max`.
+2. **CT clamp** (recommended long-term). A Shelly EM or Pro EM on the air-to-air circuit is independent of Panasonic's cloud, and stays accurate once solar and battery are fitted.
 
-- **Baseline** – the 12 months before the install date: kWh and cost per fuel,
-  plus average daily electricity (the number to watch after install).
-- **After vs same days last year** – only days with data in both years are
-  compared. Shows kWh and £ per fuel, net saving, and energy per heating
-  degree-day (base 15.5 °C) so a colder winter doesn't distort the result.
-- Monthly stacked cost, cumulative cost since install, a 7-day-average daily
-  overlay, and a monthly table.
+Without either, the tool estimates air-to-air use from whole-house electricity minus your gas-era baseline. That estimate is rough, and it stops being reliable once solar arrives.
 
-Setup: set `ELECTRICITY_SENSORS`, `GAS_SENSORS`, `ELEC_RATE_P` and `GAS_RATE_P`
-in `.env`. If the sensors are left blank the tab lists the candidate meters it
-finds. Gas meters reporting m³ are converted with `GAS_KWH_PER_M3`. Rates can be
-changed live in the tab (remembered in your browser). The same rates apply to
-both years, so the comparison reflects usage, not tariff changes. Standing
-charges are excluded. Extra endpoints: `/api/energy` and `/api/energy.csv`.
+## How the comparison works
 
-## Notes
+- **Heating degree days (HDD).** Each day's HDD is 15.5°C minus the mean outdoor temperature, or 0 if that's negative. Heating energy scales roughly linearly with HDD.
+- **Gas era fit.** The gas era is fitted as `gas kWh/day = hot water baseline + slope × HDD`. The baseline is hot water and cooking.
+- **Gas disconnected (`keep_supply: false`).** The headline compares everything gas used to do (heating + hot water/cooking + the gas standing charge) with its all-electric replacement (air-to-air + electric shower and undersink heaters). Hot water electricity comes from a `hot_water` sensor if you have one, otherwise it's estimated as last year's gas hot water × `hot_water_electric_factor` (0.85). If the gas were kept, the comparison would cover heating only.
+- **Air-to-air era fit.** Fitted the same way on the air-to-air's electricity use.
+- **Typical-year cost.** Each slope × the reference year's HDD × today's unit rate. Using one weather year and one set of prices for both systems makes it like-for-like.
+- **Effective COP.** Calculated as (gas slope × boiler efficiency) ÷ air-to-air slope: the real-world heat out per kWh in.
+- **Since switching.** Actual air-to-air heating cost compared with the gas-era model run on the same days' weather.
+- **Solar (next year).** Air-to-air kWh covered by your own solar are costed at the export rate, the income you gave up, rather than the import rate. Add the `solar` and `export` statistics and an export tariff when it's installed.
 
-- Only sensors with `state_class: measurement` get long-term statistics. tado's
-  temperature sensors do. A `climate.*` entity's `current_temperature` attribute does not.
-- The "indoor − outdoor gap" is the fairest single comparison, because it
-  allows for one winter being colder than the other.
-- Endpoints: `/api/config`, `/api/stats?ids=…&start=YYYY-MM-DD&end=YYYY-MM-DD&period=day`,
-  `/api/export.csv` (same params).
+Before any air-to-air data exists, the dashboard shows an *expected* cost based on `expected_scop`, so you have a forecast from day one.
+
+## Caveats
+
+- OVO's API is unofficial and could change. If OVO sync fails, the sync log will show it. You can import a CSV instead, or point `electricity` and `gas` at Home Assistant sensors (for example a Hildebrand Glow or a meter integration).
+- Hot water estimate. Without a meter on the shower circuit, the electric hot water figure is an estimate. A CT clamp on the shower circuit makes it measured; the undersink heaters are small and can stay estimated.
+- Comfort changes the result. If the air-to-air keeps the house warmer than the boiler did, it will cost more for that reason alone. Add an `indoor_temp` sensor to see this in the monthly table.
+- Treat the fits as reliable only once there are several weeks of cold-weather data in each era.
+
+## Files
+
+```
+app/main.py              web server + sync scheduler
+app/analysis.py          the comparison maths
+app/sources/             ovo.py, homeassistant.py, weather.py, csv_import.py
+app/static/index.html    dashboard (no external dependencies)
+tests/test_synthetic.py  checks the maths recovers known values: python -m tests.test_synthetic
+```

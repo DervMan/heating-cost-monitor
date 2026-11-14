@@ -3,501 +3,420 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Home Temperatures</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.35.2/plotly.min.js"></script>
+<title>Heating Cost Tracker</title>
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='1' x2='0' y2='0'><stop offset='0' stop-color='%23d9382b'/><stop offset='1' stop-color='%23f5a623'/></linearGradient></defs><path fill='url(%23g)' d='M32 2c3 11 18 18 18 35a18 18 0 0 1-36 0c0-8 4-14 8-18 0 7 3 10 6 11-3-10 2-20 4-28z'/><path fill='%23ffd56b' d='M32 30c2 5 7 8 7 14a7 7 0 0 1-14 0c0-6 5-9 7-14z'/></svg>">
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#667085;--border:#e3e6eb;--accent:#0a7d5a;--before:#8a94a6;--after:#0a7d5a;--warn:#b54708}
-@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--text:#e6e9ef;--muted:#98a2b3;--border:#2c333f;--accent:#3ccf9a;--before:#7c8597;--after:#3ccf9a;--warn:#f79009}}
+:root{--bg:#f6f7f5;--card:#fff;--ink:#1d2321;--muted:#66706b;--line:#e3e6e3;--gas:#d9822b;--ac:#2a7fbf;--exp:#9aa7b0;--good:#1f8a4c;--bad:#c0392b}
+@media (prefers-color-scheme:dark){:root{--bg:#111514;--card:#1a201e;--ink:#e8ece9;--muted:#9aa5a0;--line:#2b3330;--gas:#f0a050;--ac:#5aa9e6;--exp:#6c7a84;--good:#4cc27e;--bad:#ef6b5b}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{padding:20px 24px 0;max-width:1400px;margin:auto}
-h1{font-size:22px;margin:0 0 4px}
-.sub{color:var(--muted);margin:0}
-main{max-width:1400px;margin:auto;padding:16px 24px 40px;display:grid;grid-template-columns:260px 1fr;gap:20px}
-@media (max-width:860px){main{grid-template-columns:1fr;padding:16px}}
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
-aside h2,section h2{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 10px}
-.sensor{display:flex;gap:8px;align-items:flex-start;padding:4px 0;font-size:14px;cursor:pointer}
-.sensor small{display:block;color:var(--muted);font-size:11px;word-break:break-all}
-.tag{font-size:10px;background:var(--border);border-radius:4px;padding:1px 5px;margin-left:4px}
-.tabs{display:flex;gap:6px;margin-bottom:12px}
-.tabs button{border:1px solid var(--border);background:var(--card);color:var(--text);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit}
-.tabs button.active{background:var(--accent);border-color:var(--accent);color:#fff}
-.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:12px}
-.controls label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
-.controls label.inline{flex-direction:row;align-items:center;gap:6px;color:var(--text);font-size:14px}
-input,select{font:inherit;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--card);color:var(--text)}
-a.btn{font-size:13px;color:var(--accent);text-decoration:none;align-self:center}
-.plot{width:100%;height:460px}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
-.stat{border:1px solid var(--border);border-radius:10px;padding:10px 12px}
-.stat .k{font-size:12px;color:var(--muted)}
-.stat .v{font-size:20px;font-weight:600}
-.stat .v span{font-size:13px;font-weight:500;margin-left:6px}
-.up{color:var(--accent)}.down{color:var(--warn)}
-table{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
-th,td{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;margin-bottom:16px}
+h1{font-size:22px;margin:0}
+h2{font-size:16px;margin:0 0 4px}
+.sub{color:var(--muted);font-size:13px}
+button,select,input[type=file]{font:inherit}
+button{background:var(--ink);color:var(--bg);border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
+button.secondary{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:wait}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));margin-bottom:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.grid .card{margin:0}
+.big{font-size:28px;font-weight:650;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:6px}
+.good{color:var(--good)}.bad{color:var(--bad)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;color:var(--muted);border-radius:0;padding:6px 12px}
+.seg button.on{background:var(--ink);color:var(--bg)}
+select{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.tip{position:fixed;pointer-events:none;background:var(--ink);color:var(--bg);font-size:12px;line-height:1.4;padding:6px 9px;border-radius:6px;white-space:pre;display:none;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);margin:6px 0}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+svg text{fill:var(--muted);font-size:11px}
+.chart{width:100%;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
 th:first-child,td:first-child{text-align:left}
-th{color:var(--muted);font-weight:500;font-size:12px}
-.error{background:#fee4e2;color:#912018;padding:12px;border-radius:8px;margin-bottom:12px;display:none}
-.hidden{display:none}
-.note{color:var(--muted);font-size:13px}
-.table-wrap{overflow-x:auto}
-.controls input[type=number]{width:110px}
-.sect{margin:18px 0 8px}
-.stat .sub{color:var(--muted);font-size:12px;margin-top:2px}
-.stat .v.big{font-size:22px}
+th{color:var(--muted);font-weight:500}
+.tablewrap{overflow-x:auto}
+.pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;color:#fff}
+.warn{background:color-mix(in srgb,var(--gas) 14%,var(--card));border-color:color-mix(in srgb,var(--gas) 40%,var(--line))}
+.warn li{margin:2px 0}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+details summary{cursor:pointer;color:var(--muted)}
+.ok{color:var(--good)}.err{color:var(--bad)}
 </style>
 </head>
 <body>
-<header>
-  <h1>Home temperatures</h1>
-  <p class="sub">Daily averages from Home Assistant long-term statistics</p>
-</header>
 <main>
-  <aside class="card">
-    <h2>Sensors</h2>
-    <div id="sensors" class="note">Loading…</div>
-  </aside>
-  <section>
-    <div id="error" class="error"></div>
-    <div class="tabs">
-      <button data-tab="timeline" class="active">12-month timeline</button>
-      <button data-tab="compare">Before vs after</button>
-      <button data-tab="energy">Energy &amp; cost</button>
-    </div>
+<header>
+  <div>
+    <h1>Heating Cost Tracker</h1>
+    <div class="sub" id="subtitle">Gas boiler vs air-to-air</div>
+  </div>
+  <div class="row">
+    <a href="api/daily.csv"><button class="secondary">Export CSV</button></a>
+    <button id="syncBtn">Sync now</button>
+  </div>
+</header>
 
-    <div id="tab-timeline" class="card">
-      <div class="controls">
-        <label>From <input type="date" id="t-start"></label>
-        <label>To <input type="date" id="t-end"></label>
-        <label>Resolution
-          <select id="t-period"><option value="day">Daily</option><option value="week">Weekly</option><option value="month">Monthly</option><option value="hour">Hourly</option></select>
-        </label>
-        <label class="inline"><input type="checkbox" id="t-avg" checked> House average</label>
-        <label class="inline"><input type="checkbox" id="t-rooms" checked> Rooms</label>
-        <label class="inline"><input type="checkbox" id="t-band"> Min/max band</label>
-        <a class="btn" id="t-csv" href="#">Download CSV</a>
-      </div>
-      <div id="timeline" class="plot"></div>
-    </div>
+<div id="warnings"></div>
 
-    <div id="tab-compare" class="card hidden">
-      <div class="controls">
-        <label>Split date (install) <input type="date" id="c-split"></label>
-        <label>Compare
-          <select id="c-series"><option value="__avg">House average</option></select>
-        </label>
-      </div>
-      <p class="note" id="c-note"></p>
-      <div class="stats" id="c-stats"></div>
-      <div id="compare-monthly" class="plot"></div>
-      <div id="compare-daily" class="plot"></div>
-      <h2 style="margin-top:16px">Monthly averages</h2>
-      <div class="table-wrap"><table id="c-table"></table></div>
-    </div>
+<div class="grid" id="cards"></div>
 
-    <div id="tab-energy" class="card hidden">
-      <div class="controls">
-        <label>Split date (install) <input type="date" id="e-split"></label>
-        <label>Electricity rate (p/kWh) <input type="number" step="0.01" min="0" id="e-erate"></label>
-        <label>Gas rate (p/kWh) <input type="number" step="0.01" min="0" id="e-grate"></label>
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2 id="costTitle">Heating cost, at today's prices</h2>
+    <div class="row">
+      <div class="seg" id="granularity">
+        <button data-g="day">Daily</button><button data-g="week">Weekly</button><button data-g="month" class="on">Monthly</button>
       </div>
-      <p class="note" id="e-note"></p>
-      <div id="e-setup" class="note hidden"></div>
-      <div id="e-body">
-        <h2 class="sect">Baseline: 12 months before install</h2>
-        <div class="stats" id="e-base"></div>
-        <h2 class="sect">After vs the same days last year</h2>
-        <div class="stats" id="e-after"></div>
-        <div id="energy-monthly" class="plot"></div>
-        <div id="energy-cum" class="plot"></div>
-        <div id="energy-daily" class="plot"></div>
-        <h2 class="sect">Monthly detail</h2>
-        <div class="table-wrap"><table id="e-table"></table></div>
-      </div>
+      <select id="range"></select>
     </div>
-  </section>
+  </div>
+  <div class="sub" id="costSub"></div>
+  <div class="legend" id="costLegend"></div>
+  <div class="chart" id="calChart"></div>
+  <div class="sub" id="costTotals" style="margin-top:6px"></div>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2>Heat needed vs outside temperature</h2>
+    <div class="seg" id="heatGran">
+      <button data-g="day" class="on">Daily</button><button data-g="week">Weekly</button><button data-g="month">Monthly</button>
+    </div>
+  </div>
+  <div class="sub" id="heatSub"></div>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--gas)"></span>Gas era: heat delivered, kWh/day</span>
+    <span><span class="sw" style="background:var(--ac)"></span>Air-to-air: electricity, kWh/day</span>
+  </div>
+  <div class="chart" id="scatter"></div>
+</div>
+
+<div class="card">
+  <h2>Monthly detail</h2>
+  <div class="tablewrap"><table id="monthly"></table></div>
+</div>
+
+<div class="card">
+  <h2>Data</h2>
+  <div class="tablewrap"><table id="sources"></table></div>
+  <form id="importForm" class="row" style="margin-top:12px">
+    <input type="file" name="file" accept=".csv,text/csv" required>
+    <select name="metric">
+      <option value="">Fuel from file</option>
+      <option value="electricity">Electricity</option>
+      <option value="gas">Gas</option>
+      <option value="ac">Air-to-air (AC)</option>
+      <option value="hot_water">Hot water (electric)</option>
+    </select>
+    <button type="submit" class="secondary">Import CSV</button>
+    <span id="importMsg" class="sub"></span>
+  </form>
+  <details style="margin-top:12px"><summary>Sync log</summary><div class="tablewrap"><table id="log"></table></div></details>
+  <details style="margin-top:8px"><summary>How this is calculated</summary><div class="sub" id="method" style="margin-top:8px"></div></details>
+</div>
 </main>
+<div class="tip" id="tip"></div>
 
 <script>
 const $ = s => document.querySelector(s);
-let CFG = null;
-const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const addYears = (d, n) => { const x = new Date(d); x.setFullYear(x.getFullYear() + n); return x; };
-const mean = a => a.length ? a.reduce((s, v) => s + v, 0) / a.length : null;
-const fmt = (v, dp = 1) => v == null ? '–' : v.toFixed(dp);
+const gbp = v => v == null ? '–' : (v < 0 ? '−' : '') + '£' + Math.abs(v).toLocaleString('en-GB', {maximumFractionDigits: 0});
+const gbp2 = v => v == null ? '–' : '£' + v.toFixed(2);
+const num = (v, d = 0) => v == null ? '–' : v.toLocaleString('en-GB', {maximumFractionDigits: d, minimumFractionDigits: d});
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-function showError(msg) { const e = $('#error'); e.textContent = msg; e.style.display = msg ? 'block' : 'none'; }
-
-function baseLayout(extra = {}) {
-  return Object.assign({
-    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
-    font: { color: css('--text'), family: 'system-ui, sans-serif' },
-    margin: { l: 50, r: 20, t: 40, b: 40 },
-    hovermode: 'x unified',
-    legend: { orientation: 'h', y: -0.15 },
-    xaxis: { gridcolor: css('--border') },
-    yaxis: { gridcolor: css('--border'), title: CFG.unit, zeroline: false },
-  }, extra);
+function card(label, value, sub, cls = '') {
+  return `<div class="card"><div class="label">${label}</div><div class="big ${cls}">${value}</div><div class="sub">${sub || ''}</div></div>`;
 }
 
-function selected() {
-  return [...document.querySelectorAll('#sensors input:checked')].map(i => i.value);
+function renderCards(d) {
+  const p = d.projection || {}, s = d.since_switch, m = d.models || {}, set = d.settings;
+  const pe = p.prices ? num(p.prices.electricity * 100, 2) + 'p/kWh' : '', pg = p.prices ? num(p.prices.gas * 100, 2) + 'p/kWh' : '';
+  const acYear = p.ac_measured ?? p.ac_expected, acMeasured = p.ac_measured != null;
+  const out = [];
+  if (!set.keep_gas_supply) {
+    // Gas disconnected: compare everything gas used to do with its all-electric replacement.
+    out.push(card('Gas, typical year', gbp(p.gas_all_in),
+      p.gas != null ? `Heating ${gbp(p.gas)} + hot water/cooking ${gbp(p.hot_water_gas)} + standing charge ${gbp(p.gas_standing_saved)}` : 'Needs gas + weather history'));
+    out.push(card(`All-electric, typical year${acMeasured ? '' : ' (expected)'}`, gbp(p.elec_all_in),
+      p.elec_all_in != null ? `Air-to-air ${gbp(acYear)}${acMeasured ? '' : ` at SCOP ${set.expected_scop}`} + electric hot water ${gbp(p.hot_water_elec)}${p.hot_water_elec_measured ? '' : ' (estimated)'}, at ${pe}` : ''));
+    if (p.gas_all_in != null && p.elec_all_in != null) {
+      const diff = p.elec_all_in - p.gas_all_in;
+      out.push(card(diff > 0 ? 'Extra cost per year' : 'Saving per year', gbp(Math.abs(diff)),
+        `Like-for-like: same weather, today's prices${acMeasured ? '' : ', before real data'}`, diff > 0 ? 'bad' : 'good'));
+    }
+    if (s) {
+      const delta = s.gas_all_in_equiv != null ? s.all_in_cost - s.gas_all_in_equiv : null;
+      out.push(card(`Since switching (${s.days} days)`, gbp(s.all_in_cost),
+        s.gas_all_in_equiv != null ? `Gas would have cost ${gbp(s.gas_all_in_equiv)} in the same weather (${delta > 0 ? '+' : '−'}${gbp(Math.abs(delta))})${s.estimated ? '. AC use estimated.' : ''}` : ''));
+    }
+  } else {
+    out.push(card('Gas heating, typical year', gbp(p.gas), p.gas != null ? `${num(d.reference_year?.hdd)} degree days at ${pg}` : 'Needs gas + weather history'));
+    out.push(card(`Air-to-air heating, typical year${acMeasured ? '' : ' (expected)'}`, gbp(acYear),
+      acMeasured ? `Measured so far, at ${pe}` : `If the units average SCOP ${set.expected_scop}, at ${pe}`));
+    if (p.gas != null && acYear != null) {
+      const diff = acYear - p.gas;
+      out.push(card(diff > 0 ? 'Extra cost per year' : 'Saving per year', gbp(Math.abs(diff)), 'Heating only; gas kept for hot water', diff > 0 ? 'bad' : 'good'));
+    }
+    if (s) {
+      const delta = s.gas_equiv_cost != null ? s.ac_heating_cost - s.gas_equiv_cost : null;
+      out.push(card(`Since switching (${s.days} days)`, gbp(s.ac_heating_cost),
+        s.gas_equiv_cost != null ? `Gas would have cost ${gbp(s.gas_equiv_cost)} in the same weather (${delta > 0 ? '+' : '−'}${gbp(Math.abs(delta))})` : ''));
+    }
+  }
+  out.push(card('Effective efficiency', p.effective_cop != null ? num(p.effective_cop, 1) + '×' : '–',
+    p.effective_cop != null ? 'kWh of heat per kWh of electricity' : 'Shown once there are 14+ air-to-air days'));
+  out.push(card('Hot water and cooking',
+    m.non_heating_gas_kwh_per_day != null ? num(m.non_heating_gas_kwh_per_day, 1) + ' kWh/day gas' : '–',
+    set.keep_gas_supply ? 'Stays on gas' : (p.hot_water_elec_kwh_per_day != null ?
+      `Now ${num(p.hot_water_elec_kwh_per_day, 1)} kWh/day electric (shower + undersink heaters)${p.hot_water_elec_measured ? '' : ', estimated'}` : '')));
+  $('#cards').innerHTML = out.join('');
 }
-function indoorIds() { return selected().filter(id => id !== CFG.outdoor_sensor); }
-function nameOf(id) { return (CFG.sensors.find(s => s.id === id) || {}).name || id; }
 
-async function api(path) {
-  const r = await fetch(path);
-  const j = await r.json();
-  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
-  return j;
-}
-
-async function getStats(ids, start, end, period = 'day') {
-  if (!ids.length) return {};
-  return api(`api/stats?ids=${encodeURIComponent(ids.join(','))}&start=${start}&end=${end}&period=${period}`);
-}
-
-// average across indoor sensors for each timestamp present in any of them
-function houseAverage(data, ids) {
-  const buckets = {};
-  ids.forEach(id => (data[id] || []).forEach(r => (buckets[r.t] ??= []).push(r.mean)));
-  return Object.keys(buckets).sort().map(t => ({ t, mean: mean(buckets[t]) }));
-}
-
-function installShape(dateStr) {
-  if (!CFG.install_date) return {};
-  return {
-    shapes: [{ type: 'line', x0: dateStr, x1: dateStr, yref: 'paper', y0: 0, y1: 1, line: { color: css('--accent'), dash: 'dot', width: 2 } }],
-    annotations: [{ x: dateStr, yref: 'paper', y: 1.05, text: CFG.install_label, showarrow: false, font: { color: css('--accent'), size: 12 } }],
-  };
-}
-
-/* ---------- Timeline ---------- */
-async function drawTimeline() {
-  const start = $('#t-start').value, end = $('#t-end').value, period = $('#t-period').value;
-  const ids = selected(), indoor = indoorIds();
-  $('#t-csv').href = `api/export.csv?ids=${encodeURIComponent(ids.join(','))}&start=${start}&end=${end}&period=${period}`;
-  try {
-    showError('');
-    const data = await getStats(ids, start, end, period);
-    const traces = [];
-    const palette = ['#2e90fa', '#f79009', '#ee46bc', '#7a5af8', '#12b76a', '#f04438', '#06aed4', '#a15c07'];
-    if ($('#t-rooms').checked) indoor.forEach((id, i) => {
-      const rows = data[id] || [], col = palette[i % palette.length];
-      if ($('#t-band').checked) {
-        traces.push({ x: rows.map(r => r.t), y: rows.map(r => r.max), mode: 'lines', line: { width: 0 }, showlegend: false, hoverinfo: 'skip' });
-        traces.push({ x: rows.map(r => r.t), y: rows.map(r => r.min), mode: 'lines', line: { width: 0 }, fill: 'tonexty', fillcolor: col + '22', showlegend: false, hoverinfo: 'skip' });
-      }
-      traces.push({ x: rows.map(r => r.t), y: rows.map(r => r.mean), name: nameOf(id), mode: 'lines', line: { color: col, width: 1.5 } });
+function barChart(el, cats, series) {
+  const W = Math.max(600, cats.length * 70), H = 260, L = 48, B = 28, T = 10;
+  const max = Math.max(1, ...series.flatMap(s => s.values.filter(v => v != null)));
+  const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const gw = (W - L - 10) / cats.length, bw = Math.min(18, (gw - 10) / series.length);
+  let g = '';
+  for (let v = 0; v <= top + 1e-9; v += step)
+    g += `<line x1="${L}" x2="${W - 10}" y1="${y(v)}" y2="${y(v)}" stroke="${css('--line')}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">£${v}</text>`;
+  cats.forEach((c, i) => {
+    const x0 = L + i * gw + (gw - bw * series.length) / 2;
+    series.forEach((s, j) => {
+      const v = s.values[i];
+      if (v == null) return;
+      g += `<rect x="${x0 + j * bw}" y="${y(v)}" width="${bw - 2}" height="${y(0) - y(v)}" rx="2" fill="${s.color}" style="cursor:pointer" data-tip="${esc(cats[i] + '\n' + s.name + ': £' + v.toFixed(2))}"/>`;
     });
-    if ($('#t-avg').checked && indoor.length) {
-      const avg = houseAverage(data, indoor);
-      traces.push({ x: avg.map(r => r.t), y: avg.map(r => r.mean), name: 'House average', mode: 'lines', line: { color: css('--text'), width: 3 } });
+    g += `<text x="${L + i * gw + gw / 2}" y="${H - 8}" text-anchor="middle">${c}</text>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${Math.min(W, 560)}px">${g}</svg>`;
+}
+
+function niceStep(x) {
+  const p = Math.pow(10, Math.floor(Math.log10(x || 1))), f = x / p;
+  return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+}
+
+function scatter(el, sets) {
+  const W = 700, H = 312, L = 44, B = 48, T = 10, R = 12, base = DATA.settings.hdd_base_c;
+  const pts = sets.flatMap(s => s.points);
+  if (!pts.length) { el.innerHTML = '<div class="sub" style="padding:30px 0">No data with temperatures yet.</div>'; return; }
+  const xmax = Math.max(1, ...pts.map(p => p[0])), ymax = Math.max(1, ...pts.map(p => p[1]));
+  const xs = niceStep(xmax / 5), ys = niceStep(ymax / 4);
+  const xt = Math.ceil(xmax / xs) * xs, yt = Math.ceil(ymax / ys) * ys;
+  const X = v => L + (W - L - R) * v / xt, Y = v => T + (H - T - B) * (1 - v / yt);
+  let g = '';
+  for (let v = 0; v <= yt + 1e-9; v += ys) g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="${css('--line')}"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`;
+  for (let v = 0; v <= xt + 1e-9; v += xs) g += `<text x="${X(v)}" y="${H - 32}" text-anchor="middle">${v}</text><text x="${X(v)}" y="${H - 19}" text-anchor="${v === 0 ? 'start' : v + xs > xt + 1e-9 ? 'end' : 'middle'}" style="font-size:10px;opacity:.75">${+(base - v).toFixed(1)}°C</text>`;
+  g += `<text x="${(W + L) / 2}" y="${H - 2}" text-anchor="middle">${sets.xLabel || 'Heating degree days (colder →)'} · outside temperature below</text>`;
+  sets.forEach(s => {
+    s.points.forEach(p => g += `<circle cx="${X(p[0])}" cy="${Y(Math.max(0, p[1]))}" r="${s.r || 2.6}" fill="${s.color}" fill-opacity="${s.op || .55}" stroke="transparent" stroke-width="8" style="cursor:pointer"${p[3] ? ` data-tip="${esc(p[3])}"` : ''}/>`);
+    if (s.fit) {
+      const a = s.fit.a, b = s.fit.b, x2 = Math.max(...s.points.map(p => p[0]));
+      g += `<line x1="${X(0)}" y1="${Y(Math.max(0, a))}" x2="${X(x2)}" y2="${Y(Math.max(0, a + b * x2))}" stroke="${s.color}" stroke-width="2.5"/>`;
     }
-    if (CFG.outdoor_sensor && ids.includes(CFG.outdoor_sensor)) {
-      const rows = data[CFG.outdoor_sensor] || [];
-      traces.push({ x: rows.map(r => r.t), y: rows.map(r => r.mean), name: 'Outdoor', mode: 'lines', line: { color: css('--muted'), dash: 'dash', width: 1.5 } });
-    }
-    Plotly.react('timeline', traces, baseLayout(installShape(CFG.install_date)), { responsive: true, displaylogo: false });
-  } catch (e) { showError('Could not load data: ' + e.message); }
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:520px">${g}</svg>`;
 }
 
-/* ---------- Before vs after ---------- */
-async function drawCompare() {
-  const split = new Date($('#c-split').value + 'T00:00:00');
-  const bStart = addYears(split, -1), aEnd = addYears(split, 1);
-  const choice = $('#c-series').value;
-  const indoor = choice === '__avg' ? indoorIds() : [choice];
-  const ids = [...new Set([...indoor, ...(CFG.outdoor_sensor ? [CFG.outdoor_sensor] : [])])];
-  try {
-    showError('');
-    const data = await getStats(ids, iso(bStart), iso(aEnd), 'day');
-    const series = houseAverage(data, indoor);
-    const outMap = Object.fromEntries((data[CFG.outdoor_sensor] || []).map(r => [r.t, r.mean]));
-    const splitStr = iso(split);
-    const before = series.filter(r => r.t < splitStr), after = series.filter(r => r.t >= splitStr);
-
-    const today = iso(new Date());
-    $('#c-note').textContent = after.length
-      ? `Before: ${iso(bStart)} → ${iso(addDays(split, -1))} (${before.length} days). After: ${splitStr} → ${after[after.length - 1].t} (${after.length} days so far).`
-      : `Before: ${iso(bStart)} → ${iso(addDays(split, -1))} (${before.length} days). The "after" year fills in automatically from ${splitStr}.`;
-
-    // summary
-    const summary = rows => {
-      const m = rows.map(r => r.mean), o = rows.map(r => outMap[r.t]).filter(v => v != null);
-      const gaps = rows.filter(r => outMap[r.t] != null).map(r => r.mean - outMap[r.t]);
-      return { avg: mean(m), out: mean(o), gap: mean(gaps), cold: m.filter(v => v < 18).length, min: m.length ? Math.min(...m) : null, max: m.length ? Math.max(...m) : null, n: m.length };
-    };
-    const B = summary(before), A = summary(after);
-    const delta = (a, b, invert = false) => {
-      if (a == null || b == null || !A.n) return '';
-      const d = a - b, good = invert ? d < 0 : d > 0;
-      return `<span class="${good ? 'up' : 'down'}">${d > 0 ? '+' : ''}${d.toFixed(1)}</span>`;
-    };
-    const card = (k, b, a, dp = 1, inv = false, unit = CFG.unit) =>
-      `<div class="stat"><div class="k">${k}</div><div class="v">${fmt(b, dp)}${unit} → ${A.n ? fmt(a, dp) + unit : '…'}${delta(a, b, inv)}</div></div>`;
-    $('#c-stats').innerHTML =
-      card('Average indoor', B.avg, A.avg) +
-      card('Average outdoor', B.out, A.out) +
-      card('Indoor − outdoor gap', B.gap, A.gap) +
-      card('Coldest day (indoor)', B.min, A.min) +
-      card('Warmest day (indoor)', B.max, A.max, 1, true) +
-      card('Days below 18' + CFG.unit, B.cold, A.cold, 0, true, '');
-
-    // monthly buckets keyed by month offset from split (0..11)
-    const monthIdx = (t, origin) => { const d = new Date(t + 'T00:00:00'); return (d.getFullYear() - origin.getFullYear()) * 12 + d.getMonth() - origin.getMonth(); };
-    const labels = [...Array(12)].map((_, i) => new Date(split.getFullYear(), split.getMonth() + i, 1).toLocaleString('en-GB', { month: 'short' }));
-    const bucket = (rows, origin, valFn) => {
-      const b = [...Array(12)].map(() => []);
-      rows.forEach(r => { const i = monthIdx(r.t, origin); const v = valFn(r); if (i >= 0 && i < 12 && v != null) b[i].push(v); });
-      return b.map(mean);
-    };
-    const bIn = bucket(before, bStart, r => r.mean), aIn = bucket(after, split, r => r.mean);
-    const bOut = bucket(before, bStart, r => outMap[r.t]), aOut = bucket(after, split, r => outMap[r.t]);
-    const label = choice === '__avg' ? 'House average' : nameOf(choice);
-
-    const mTraces = [
-      { type: 'bar', x: labels, y: bIn, name: `${label} – before`, marker: { color: css('--before') } },
-      { type: 'bar', x: labels, y: aIn, name: `${label} – after`, marker: { color: css('--after') } },
-    ];
-    if (CFG.outdoor_sensor) mTraces.push(
-      { x: labels, y: bOut, name: 'Outdoor – before', mode: 'lines+markers', line: { color: css('--before'), dash: 'dash' } },
-      { x: labels, y: aOut, name: 'Outdoor – after', mode: 'lines+markers', line: { color: css('--after'), dash: 'dash' } });
-    Plotly.react('compare-monthly', mTraces, baseLayout({ title: { text: 'Monthly average', font: { size: 14 } }, barmode: 'group', hovermode: 'x unified' }), { responsive: true, displaylogo: false });
-
-    // daily overlay: shift "after" back a year so both share an x axis
-    const shift = t => iso(addYears(new Date(t + 'T12:00:00'), -1));
-    const dTraces = [
-      { x: before.map(r => r.t), y: before.map(r => r.mean), name: 'Before', mode: 'lines', line: { color: css('--before'), width: 2 } },
-      { x: after.map(r => shift(r.t)), y: after.map(r => r.mean), name: 'After', mode: 'lines', line: { color: css('--after'), width: 2.5 },
-        customdata: after.map(r => r.t), hovertemplate: '%{customdata}: %{y:.1f}' + CFG.unit },
-    ];
-    Plotly.react('compare-daily', dTraces, baseLayout({ title: { text: 'Daily average, year over year', font: { size: 14 } }, xaxis: { tickformat: '%b', dtick: 'M1', gridcolor: css('--border') } }), { responsive: true, displaylogo: false });
-
-    // table
-    const d = (a, b) => a == null || b == null ? '–' : `<span class="${a - b >= 0 ? 'up' : 'down'}">${a - b > 0 ? '+' : ''}${(a - b).toFixed(1)}</span>`;
-    $('#c-table').innerHTML = `<tr><th>Month</th><th>Before</th><th>After</th><th>Change</th><th>Outdoor before</th><th>Outdoor after</th></tr>` +
-      labels.map((m, i) => `<tr><td>${m}</td><td>${fmt(bIn[i])}</td><td>${fmt(aIn[i])}</td><td>${d(aIn[i], bIn[i])}</td><td>${fmt(bOut[i])}</td><td>${fmt(aOut[i])}</td></tr>`).join('');
-  } catch (e) { showError('Could not load data: ' + e.message); }
+function renderMonthly(d) {
+  const head = '<tr><th>Month</th><th>System</th><th>Degree days</th><th>Gas kWh</th><th>Elec kWh</th><th>AC heat kWh</th><th>Hot water kWh</th><th>Heating £</th><th>£ per degree day</th><th>Whole bill £</th><th>Indoor °C</th></tr>';
+  const rows = d.monthly.slice().reverse().map(m => {
+    const [y, mo] = m.month.split('-');
+    const pill = `<span class="pill" style="background:${m.era === 'gas' ? css('--gas') : css('--ac')}">${m.era === 'gas' ? 'Gas' : 'Air-to-air'}</span>`;
+    return `<tr><td>${MONTHS[+mo - 1]} ${y}${m.days < 28 ? ` <span class="sub">(${m.days}d)</span>` : ''}</td><td>${pill}</td><td>${num(m.hdd)}</td><td>${num(m.gas_kwh)}</td><td>${num(m.elec_kwh)}</td><td>${num(m.ac_kwh)}</td><td>${m.hw_kwh ? num(m.hw_kwh) : '–'}</td><td>${gbp2(m.heating_cost)}</td><td>${m.cost_per_hdd != null ? gbp2(m.cost_per_hdd) : '–'}</td><td>${gbp2(m.total_cost)}</td><td>${m.indoor_avg ?? '–'}</td></tr>`;
+  });
+  $('#monthly').innerHTML = head + rows.join('');
 }
 
-/* ---------- Energy & cost ---------- */
-const HDD_BASE = 15.5;                       // degree-day base temperature
-const RATES_KEY = 'ha-energy-rates';
-let energyCache = null;
-const prevYear = t => `${+t.slice(0, 4) - 1}${t.slice(4)}`;
-const gbp = (v, dp = 0) => v == null ? '–' : (v < 0 ? '-' : '') + '£' + Math.abs(v).toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp });
-const sumOf = a => a.reduce((s, v) => s + v, 0);
-
-function dayMap(data, ids) {
-  const m = {};
-  ids.forEach(id => (data[id] || []).forEach(r => { m[r.t] = (m[r.t] || 0) + r.kwh; }));
-  return m;
+function renderSources(d) {
+  $('#sources').innerHTML = '<tr><th>Metric</th><th>Source</th><th>Days</th><th>From</th><th>To</th></tr>' +
+    d.sources.map(s => `<tr><td>${esc(s.metric)}</td><td>${esc(s.source)}</td><td>${s.days}</td><td>${s.first}</td><td>${s.last}</td></tr>`).join('');
+  $('#log').innerHTML = '<tr><th>When (UTC)</th><th>Source</th><th>Result</th></tr>' +
+    d.sync_log.map(l => `<tr><td>${esc(l.ts.replace('T', ' ').slice(0, 16))}</td><td>${esc(l.source)}</td><td style="text-align:left;white-space:normal" class="${l.ok ? 'ok' : 'err'}">${esc(l.message)}</td></tr>`).join('');
 }
 
-async function loadEnergy(split) {
-  const key = iso(split);
-  if (energyCache && energyCache.key === key) return energyCache;
-  const bStart = addYears(split, -1), aEnd = addYears(split, 1);
-  const ids = [...CFG.electricity_sensors, ...CFG.gas_sensors];
-  const [en, temp] = await Promise.all([
-    api(`api/energy?ids=${encodeURIComponent(ids.join(','))}&start=${iso(bStart)}&end=${iso(aEnd)}&period=day`),
-    CFG.outdoor_sensor ? getStats([CFG.outdoor_sensor], iso(bStart), iso(aEnd), 'day') : Promise.resolve({}),
-  ]);
-  energyCache = {
-    key,
-    elec: dayMap(en, CFG.electricity_sensors),
-    gas: dayMap(en, CFG.gas_sensors),
-    out: Object.fromEntries((temp[CFG.outdoor_sensor] || []).map(r => [r.t, r.mean])),
-  };
-  return energyCache;
+function renderMethod(d) {
+  const m = d.models, s = d.settings, r = d.reference_year;
+  const fit = (f, unit) => f ? `${num(f.a, 1)} + ${num(f.b, 2)} × degree days (${unit}, R² ${num(f.r2, 2)}, ${f.n} days)` : 'not enough data yet';
+  $('#method').innerHTML = `
+    <p>Degree days use a ${s.hdd_base_c}°C base and Open-Meteo temperatures for your location. Reference weather year: ${r ? `${r.start} to ${r.end} (${num(r.hdd)} degree days)` : 'not available yet'}.</p>
+    <p>Gas model: ${fit(m.gas, 'kWh gas/day')}. The fixed part (${num(m.non_heating_gas_kwh_per_day, 1)} kWh/day) is treated as hot water and cooking; the rest is heating. Boiler efficiency assumed ${s.boiler_efficiency * 100}%.</p>
+    <p>Air-to-air model: ${fit(m.ac, 'kWh electricity/day')}. Days above ${s.cooling_threshold_c}°C count as cooling unless a separate cooling sensor is configured.</p>
+    <p>Projections use today's unit rates for both fuels so price changes don't distort the comparison. With the gas disconnected, the comparison covers everything gas used to do: heating, hot water/cooking (now the electric shower and undersink heaters, assumed to need ${s.hot_water_electric_factor} kWh of electricity per kWh of gas unless measured) and the gas standing charge. Once solar is fitted, air-to-air kWh covered by solar are costed at your export rate (the income you gave up), not the import rate.</p>`;
 }
 
-async function drawEnergy() {
-  const noSensors = !CFG.electricity_sensors.length && !CFG.gas_sensors.length;
-  $('#e-setup').classList.toggle('hidden', !noSensors);
-  $('#e-body').classList.toggle('hidden', noSensors);
-  if (noSensors) {
-    const c = CFG.energy_candidates || [];
-    $('#e-setup').innerHTML = 'Set <code>ELECTRICITY_SENSORS</code> and <code>GAS_SENSORS</code> in <code>.env</code> (comma separated) and restart. ' +
-      (c.length ? 'Energy/gas meters with long-term statistics that I found:<br>' + c.map(x => `<code>${x.id}</code> (${x.name})`).join('<br>') : 'No energy or gas meters with long-term statistics were found.');
+let DATA = null, GRAN = 'month', RANGE = {};
+const RANGES = {day: [[30, 'Last 30 days'], [60, 'Last 60 days'], [90, 'Last 90 days']],
+                week: [[13, 'Last 13 weeks'], [26, 'Last 26 weeks'], [52, 'Last 52 weeks'], [104, 'Last 2 years']]};
+const sw = (c, label, pale) => `<span><span class="sw" style="background:${c};${pale ? 'opacity:.4' : ''}"></span>${label}</span>`;
+
+function weekStart(ds) {          // Monday of the ISO week, as YYYY-MM-DD
+  const dt = new Date(ds + 'T12:00:00Z'), wd = (dt.getUTCDay() + 6) % 7;
+  dt.setUTCDate(dt.getUTCDate() - wd);
+  return dt.toISOString().slice(0, 10);
+}
+const fmtDay = ds => { const [y, m, dd] = ds.split('-'); return `${+dd} ${MONTHS[+m - 1]}`; };
+
+function renderCostChart() {
+  const d = DATA;
+  document.querySelectorAll('#granularity button').forEach(b => b.classList.toggle('on', b.dataset.g === GRAN));
+  const sel = $('#range');
+  if (GRAN === 'month') {
+    sel.style.display = 'none';
+    $('#costTitle').textContent = "Heating cost by month, at today's prices";
+    $('#costSub').textContent = "Gas year vs air-to-air. Air-to-air months are scaled to the gas year's weather so a mild or cold month doesn't skew the comparison.";
+    $('#costLegend').innerHTML = sw(css('--gas'), 'Gas (reference year)') + sw(css('--exp'), `Air-to-air, expected (SCOP ${d.settings.expected_scop})`) + sw(css('--ac'), 'Air-to-air, actual (weather-adjusted)');
+    $('#costTotals').textContent = '';
+    barChart($('#calChart'), d.calendar.map(c => MONTHS[c.cal - 1]), [
+      {name: 'Gas', color: css('--gas'), values: d.calendar.map(c => c.gas_now)},
+      {name: 'Air-to-air expected', color: css('--exp'), values: d.calendar.map(c => c.ac_expected)},
+      {name: 'Air-to-air actual', color: css('--ac'), values: d.calendar.map(c => c.ac_adj)},
+    ]);
     return;
   }
-  try {
-    showError('');
-    await loadEnergy(new Date($('#e-split').value + 'T00:00:00'));
-    renderEnergy();
-  } catch (e) { showError('Could not load energy data: ' + e.message); }
+  sel.style.display = '';
+  const opts = RANGES[GRAN], cur = RANGE[GRAN] ?? opts[1][0];
+  sel.innerHTML = opts.map(([v, l]) => `<option value="${v}" ${v == cur ? 'selected' : ''}>${l}</option>`).join('');
+  const unit = GRAN === 'day' ? 'day' : 'week';
+  $('#costTitle').textContent = `Heating cost by ${unit}, at today's prices`;
+  const acBasis = d.ac_estimate_basis === 'measured' ? 'your measured air-to-air efficiency' : `SCOP ${d.settings.expected_scop}`;
+  $('#costSub').textContent = `Both systems for every ${unit}, in that ${unit}'s weather. Solid is what the running system actually cost; pale is an estimate for the other system (gas from your gas-year model, air-to-air from ${acBasis}).`;
+  $('#costLegend').innerHTML = sw(css('--gas'), 'Gas, actual') + sw(css('--gas'), 'Gas, estimated', true) + sw(css('--ac'), 'Air-to-air, actual') + sw(css('--ac'), 'Air-to-air, estimated', true);
+
+  // bucket the daily series
+  const buckets = new Map();
+  for (const r of d.daily_costs) {
+    const k = GRAN === 'day' ? r.d : weekStart(r.d);
+    const b = buckets.get(k) || {k, ga: 0, ge: 0, aa: 0, ae: 0, n: 0, t: 0};
+    for (const f of ['ga', 'ge', 'aa', 'ae']) b[f] += r[f] || 0;
+    b.n++; b.t += r.t; buckets.set(k, b);
+  }
+  const list = [...buckets.values()].sort((a, b) => a.k < b.k ? -1 : 1).slice(-cur);
+  if (!list.length) { $('#calChart').innerHTML = '<div class="sub" style="padding:30px 0">No data with temperatures yet.</div>'; $('#costTotals').textContent = ''; return; }
+  const labels = list.map(b => GRAN === 'day' ? fmtDay(b.k) : 'w/c ' + fmtDay(b.k));
+  stackedBars($('#calChart'), labels, list.map(b => [
+    [{v: b.ga, c: css('--gas'), n: 'Gas, actual'}, {v: b.ge, c: css('--gas'), o: .4, n: 'Gas, estimated'}],
+    [{v: b.aa, c: css('--ac'), n: 'Air-to-air, actual'}, {v: b.ae, c: css('--ac'), o: .4, n: 'Air-to-air, estimated'}],
+  ]), list.map((b, i) => `${labels[i]} · avg ${num(b.t / b.n, 1)}°C${GRAN === 'week' && b.n < 7 ? ` · ${b.n} of 7 days so far` : ''}`));
+  const tot = list.reduce((s, b) => ({g: s.g + b.ga + b.ge, a: s.a + b.aa + b.ae}), {g: 0, a: 0});
+  const diff = tot.a - tot.g;
+  $('#costTotals').innerHTML = `Over this period: gas <b>${gbp2(tot.g)}</b> vs air-to-air <b>${gbp2(tot.a)}</b> · ` +
+    `<span class="${diff > 0 ? 'bad' : 'good'}">air-to-air ${diff > 0 ? 'costs' : 'saves'} ${gbp2(Math.abs(diff))}</span> (heating only)`;
 }
 
-function saveRates() {
-  try { localStorage.setItem(RATES_KEY, JSON.stringify({ e: $('#e-erate').value, g: $('#e-grate').value })); } catch (_) {}
-  if (energyCache && activeTab() === 'energy') renderEnergy();
-}
-
-function renderEnergy() {
-  const { elec, gas, out } = energyCache;
-  const split = new Date($('#e-split').value + 'T00:00:00'), splitStr = iso(split);
-  const bStartStr = iso(addYears(split, -1));
-  const rate = id => (parseFloat($(id).value) || 0) / 100;
-  const fuels = [];
-  if (CFG.electricity_sensors.length) fuels.push({ name: 'Electricity', map: elec, rate: rate('#e-erate'), col: '#2e90fa' });
-  if (CFG.gas_sensors.length) fuels.push({ name: 'Gas', map: gas, rate: rate('#e-grate'), col: '#f79009' });
-  const inBefore = t => t >= bStartStr && t < splitStr, inAfter = t => t >= splitStr;
-  const days = (f, pred) => Object.keys(f.map).filter(pred).sort();
-
-  if (fuels.every(f => !Object.keys(f.map).length)) {
-    showError('No long-term statistics came back for the configured energy sensors. Check Developer tools → Statistics in Home Assistant.');
-  }
-
-  // days where every fuel has data both now and a year earlier, so comparisons are like for like
-  const matched = [...new Set(fuels.flatMap(f => days(f, inAfter)))].sort()
-    .filter(t => fuels.every(f => f.map[t] != null && f.map[prevYear(t)] != null));
-
-  $('#e-note').textContent = `Costs use the rates above for both years, so differences reflect usage rather than price changes. Standing charges are excluded. ` +
-    (matched.length ? `Comparing ${matched.length} days since ${splitStr} against the same dates a year earlier.` : `Baseline: ${bStartStr} → ${iso(addDays(split, -1))}. The comparison appears once data arrives after ${splitStr}.`);
-
-  const stat = (k, v, sub = '') => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
-  const dl = (a, b, text) => { const d = a - b; return `<span class="${d <= 0 ? 'up' : 'down'}">${d > 0 ? '+' : ''}${text(d)}</span>`; };
-
-  // ---- baseline cards (full 12 months before) ----
-  const base = fuels.map(f => { const d = days(f, inBefore); return { f, d, kwh: sumOf(d.map(t => f.map[t])) }; });
-  const spanDays = Math.round((split - addYears(split, -1)) / 864e5);
-  $('#e-base').innerHTML = base.map(b =>
-      stat(`${b.f.name} (baseline)`, `${fmt(b.kwh, 0)} kWh`, `${gbp(b.kwh * b.f.rate)} · ${b.d.length}/${spanDays} days with data`)).join('') +
-    stat('Total baseline cost', gbp(sumOf(base.map(b => b.kwh * b.f.rate))), 'at the rates above') +
-    (base.find(b => b.f.name === 'Electricity') && base.find(b => b.f.name === 'Electricity').d.length
-      ? stat('Avg daily electricity', `${fmt(base.find(b => b.f.name === 'Electricity').kwh / base.find(b => b.f.name === 'Electricity').d.length, 1)} kWh`, 'the figure to watch after install') : '');
-
-  // ---- after vs same days last year ----
-  const A = f => sumOf(matched.map(t => f.map[t])), B = f => sumOf(matched.map(t => f.map[prevYear(t)]));
-  if (matched.length) {
-    const costA = sumOf(fuels.map(f => A(f) * f.rate)), costB = sumOf(fuels.map(f => B(f) * f.rate));
-    const kwhA = sumOf(fuels.map(A)), kwhB = sumOf(fuels.map(B));
-    const m2 = matched.filter(t => out[t] != null && out[prevYear(t)] != null);
-    const hdd = (ts, sh) => sumOf(ts.map(t => Math.max(0, HDD_BASE - out[sh ? prevYear(t) : t])));
-    const hA = hdd(m2, false), hB = hdd(m2, true);
-    const perHdd = (sh, h) => h > 20 ? sumOf(fuels.map(f => sumOf(m2.map(t => f.map[sh ? prevYear(t) : t])))) / h : null;
-    const pA = perHdd(false, hA), pB = perHdd(true, hB);
-    const net = costB - costA;
-    $('#e-after').innerHTML =
-      fuels.map(f => stat(`${f.name}, ${matched.length} days`, `${fmt(B(f), 0)} → ${fmt(A(f), 0)} kWh ${dl(A(f), B(f), d => d.toFixed(0))}`, `${gbp(B(f) * f.rate)} → ${gbp(A(f) * f.rate)}`)).join('') +
-      stat('Total cost', `${gbp(costB)} → ${gbp(costA)} ${dl(costA, costB, d => gbp(d))}`) +
-      stat('Net saving so far', `<span class="${net >= 0 ? 'up' : 'down'}">${gbp(net)}</span>`, net >= 0 ? 'cheaper than the same days last year' : 'dearer than the same days last year') +
-      stat('Total energy', `${fmt(kwhB, 0)} → ${fmt(kwhA, 0)} kWh ${dl(kwhA, kwhB, d => d.toFixed(0))}`) +
-      stat('Energy per degree-day', pA == null || pB == null ? '–' : `${fmt(pB, 1)} → ${fmt(pA, 1)} kWh ${dl(pA, pB, d => d.toFixed(1))}`,
-        pA == null ? 'needs colder days and an outdoor sensor' : `weather-adjusted, base ${HDD_BASE}${CFG.unit}`);
-  } else {
-    $('#e-after').innerHTML = stat('Waiting for post-install data', '…', `fills in automatically from ${splitStr}`);
-  }
-
-  // ---- monthly stacked cost ----
-  const mIdx = (t, origin) => { const d = new Date(t + 'T00:00:00'); return (d.getFullYear() - origin.getFullYear()) * 12 + d.getMonth() - origin.getMonth(); };
-  const labels = [...Array(12)].map((_, i) => new Date(split.getFullYear(), split.getMonth() + i, 1).toLocaleString('en-GB', { month: 'short' }));
-  const monthly = (map, origin, pred) => {
-    const sum = Array(12).fill(0), n = Array(12).fill(0);
-    Object.keys(map).forEach(t => { if (!pred(t)) return; const i = mIdx(t, origin); if (i >= 0 && i < 12) { sum[i] += map[t]; n[i]++; } });
-    return { sum, n };
-  };
-  const mB = fuels.map(f => monthly(f.map, addYears(split, -1), inBefore));
-  const mA = fuels.map(f => monthly(f.map, split, inAfter));
-  const mTraces = [];
-  fuels.forEach((f, k) => mTraces.push({ type: 'bar', x: labels, y: mB[k].sum.map(v => v * f.rate), name: `${f.name} – before`, offsetgroup: 'before',
-    marker: { color: f.col, opacity: 0.45 }, customdata: labels.map((_, i) => [mB[k].sum[i], mB[k].n[i]]), hovertemplate: '£%{y:.2f} (%{customdata[0]:.0f} kWh, %{customdata[1]} days)' }));
-  fuels.forEach((f, k) => mTraces.push({ type: 'bar', x: labels, y: mA[k].sum.map((v, i) => mA[k].n[i] ? v * f.rate : null), name: `${f.name} – after`, offsetgroup: 'after',
-    marker: { color: f.col }, customdata: labels.map((_, i) => [mA[k].sum[i], mA[k].n[i]]), hovertemplate: '£%{y:.2f} (%{customdata[0]:.0f} kWh, %{customdata[1]} days)' }));
-  Plotly.react('energy-monthly', mTraces, baseLayout({ title: { text: 'Monthly cost (latest month may be partial)', font: { size: 14 } }, barmode: 'stack',
-    yaxis: { gridcolor: css('--border'), title: '£ per month', zeroline: false } }), { responsive: true, displaylogo: false });
-
-  // ---- cumulative cost on matched days ----
-  $('#energy-cum').classList.toggle('hidden', !matched.length);
-  if (matched.length) {
-    let cb = 0, ca = 0; const yb = [], ya = [];
-    matched.forEach(t => {
-      cb += sumOf(fuels.map(f => f.map[prevYear(t)] * f.rate)); ca += sumOf(fuels.map(f => f.map[t] * f.rate));
-      yb.push(cb); ya.push(ca);
+function stackedBars(el, cats, groups, titles) {
+  const n = cats.length, gw = Math.max(14, Math.min(70, 900 / n)), L = 48, B = 28, T = 10, H = 260;
+  const W = Math.max(600, L + 10 + n * gw);
+  const max = Math.max(0.5, ...groups.flatMap(g => g.map(st => st.reduce((s, x) => s + (x.v || 0), 0))));
+  const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
+  const y = v => T + (H - T - B) * (1 - v / top);
+  const bw = Math.max(4, Math.min(18, (gw - 4) / 2));
+  const every = Math.ceil(n / Math.floor((W - L) / 60));
+  let g = '';
+  for (let v = 0; v <= top + 1e-9; v += step)
+    g += `<line x1="${L}" x2="${W - 10}" y1="${y(v)}" y2="${y(v)}" stroke="${css('--line')}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">£${+v.toFixed(2)}</text>`;
+  groups.forEach((stacks, i) => {
+    const x0 = L + i * gw + (gw - bw * 2) / 2;
+    g += `<g style="cursor:pointer" data-tip="${esc(titles[i] + '\n' + stacks.flat().filter(s => s.v > 0.004).map(s => `${s.n}: £${s.v.toFixed(2)}`).join('\n'))}">`;
+    g += `<rect x="${L + i * gw}" y="${T}" width="${gw}" height="${H - T - B}" fill="transparent"/>`;
+    stacks.forEach((st, j) => {
+      let base = 0;
+      st.forEach(seg => {
+        if (!(seg.v > 0)) return;
+        g += `<rect x="${x0 + j * bw}" y="${y(base + seg.v)}" width="${Math.max(1, bw - 1.5)}" height="${y(base) - y(base + seg.v)}" fill="${seg.c}" fill-opacity="${seg.o || 1}"/>`;
+        base += seg.v;
+      });
     });
-    Plotly.react('energy-cum', [
-      { x: matched, y: yb, name: 'Same days last year', mode: 'lines', line: { color: css('--before'), width: 2.5 } },
-      { x: matched, y: ya, name: 'After install', mode: 'lines', line: { color: css('--after'), width: 2.5 } },
-    ], baseLayout({ title: { text: 'Cumulative cost since install (days with data in both years)', font: { size: 14 } },
-      yaxis: { gridcolor: css('--border'), title: '£', zeroline: false } }), { responsive: true, displaylogo: false });
+    g += '</g>';
+    if (i % every === 0) g += `<text x="${L + i * gw + gw / 2}" y="${H - 8}" text-anchor="middle">${cats[i]}</text>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${Math.min(W, 560)}px">${g}</svg>`;
+}
+
+let HEAT_GRAN = 'day';
+const HEAT_LABEL = {gas: 'Heat from gas boiler', ac: 'Air-to-air electricity'};
+const tag = (pts, src) => { const out = pts.map(p => [p[0], p[1], p[2], null, src]); out.src = src; return out; };
+// Weekly/monthly points are averages per day, so the axes and trend lines stay the same; they just smooth out the noise.
+function bucketPoints(points, gran) {
+  const base = DATA.settings.hdd_base_c, temp = h => h > 0 ? `${num(base - h, 1)}°C` : `${base}°C or warmer`;
+  if (gran === 'day') return points.map(p => [p[0], p[1], p[2], `${fmtDay(p[2])} ${p[2].slice(0, 4)}\nAverage outside: ${temp(p[0])} (${num(p[0], 1)} degree days)\n${HEAT_LABEL[p[4]]}: ${num(p[1], 1)} kWh`]);
+  const m = new Map();
+  for (const [x, y, ds] of points) {
+    const k = gran === 'week' ? weekStart(ds) : ds.slice(0, 7);
+    const b = m.get(k) || {k, x: 0, y: 0, n: 0, s: points.src}; b.x += x; b.y += y; b.n++; m.set(k, b);
   }
-
-  // ---- daily kWh overlay, 7-day rolling ----
-  const roll = (ts, map, n = 7) => ts.map((t, i) => { const w = ts.slice(Math.max(0, i - n + 1), i + 1).map(x => map[x]); return mean(w); });
-  const dTraces = [];
-  fuels.forEach(f => {
-    const tb = days(f, inBefore), ta = days(f, inAfter);
-    dTraces.push({ x: tb, y: roll(tb, f.map), name: `${f.name} – before`, mode: 'lines', line: { color: f.col, width: 2, dash: 'dot' }, opacity: 0.7 });
-    dTraces.push({ x: ta.map(prevYear), y: roll(ta, f.map), name: `${f.name} – after`, mode: 'lines', line: { color: f.col, width: 2.5 },
-      customdata: ta, hovertemplate: '%{customdata}: %{y:.1f} kWh/day' });
+  return [...m.values()].filter(b => b.n >= 3).map(b => {
+    const label = gran === 'week' ? `w/c ${fmtDay(b.k)} ${b.k.slice(0, 4)}` : `${MONTHS[+b.k.slice(5, 7) - 1]} ${b.k.slice(0, 4)}`;
+    return [b.x / b.n, b.y / b.n, b.k, `${label} (${b.n} days)\nAverage outside: ${temp(b.x / b.n)} (${num(b.x / b.n, 1)} degree days)\n${HEAT_LABEL[b.s]}: ${num(b.y / b.n, 1)} kWh/day on average`];
   });
-  Plotly.react('energy-daily', dTraces, baseLayout({ title: { text: 'Daily energy use, 7-day average, year over year (kWh/day)', font: { size: 14 } },
-    xaxis: { tickformat: '%b', dtick: 'M1', gridcolor: css('--border') }, yaxis: { gridcolor: css('--border'), title: 'kWh/day', zeroline: false } }), { responsive: true, displaylogo: false });
-
-  // ---- table ----
-  const head = `<tr><th>Month</th>${fuels.map(f => `<th>${f.name} before (kWh)</th><th>${f.name} after (kWh)</th>`).join('')}<th>Cost before</th><th>Cost after</th><th>Change</th><th>Days (b/a)</th></tr>`;
-  const rows = labels.map((m, i) => {
-    const cb = sumOf(fuels.map((f, k) => mB[k].sum[i] * f.rate)), ca = sumOf(fuels.map((f, k) => mA[k].sum[i] * f.rate));
-    const hasA = mA[0].n[i] > 0;
-    return `<tr><td>${m}</td>${fuels.map((f, k) => `<td>${fmt(mB[k].sum[i], 0)}</td><td>${hasA ? fmt(mA[k].sum[i], 0) : '–'}</td>`).join('')}` +
-      `<td>${gbp(cb)}</td><td>${hasA ? gbp(ca) : '–'}</td><td>${hasA ? `<span class="${ca <= cb ? 'up' : 'down'}">${ca - cb > 0 ? '+' : ''}${gbp(ca - cb)}</span>` : '–'}</td><td>${mB[0].n[i]}/${mA[0].n[i]}</td></tr>`;
-  });
-  $('#e-table').innerHTML = head + rows.join('');
 }
 
-/* ---------- init ---------- */
-function activeTab() { return document.querySelector('.tabs .active').dataset.tab; }
-function redraw() { ({ timeline: drawTimeline, compare: drawCompare, energy: drawEnergy })[activeTab()](); }
-
-document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
-  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('active', x === b));
-  ['timeline', 'compare', 'energy'].forEach(n => $('#tab-' + n).classList.toggle('hidden', b.dataset.tab !== n));
-  redraw();
-});
-['#t-start', '#t-end', '#t-period', '#t-avg', '#t-rooms', '#t-band'].forEach(s => $(s).onchange = drawTimeline);
-['#c-split', '#c-series'].forEach(s => $(s).onchange = drawCompare);
-$('#e-split').onchange = drawEnergy;
-['#e-erate', '#e-grate'].forEach(s => $(s).oninput = saveRates);
-
-(async () => {
-  try {
-    CFG = await api('api/config');
-  } catch (e) { $('#sensors').textContent = ''; showError('Cannot reach Home Assistant: ' + e.message); return; }
-  const defaults = CFG.default_sensors.length ? CFG.default_sensors : CFG.sensors.map(s => s.id);
-  // make sure configured sensors appear even if HA reports them oddly
-  [...CFG.default_sensors, CFG.outdoor_sensor].filter(Boolean).forEach(id => { if (!CFG.sensors.find(s => s.id === id)) CFG.sensors.push({ id, name: id }); });
-  $('#sensors').innerHTML = CFG.sensors.length ? CFG.sensors.map(s => `
-    <label class="sensor"><input type="checkbox" value="${s.id}" ${defaults.includes(s.id) || s.id === CFG.outdoor_sensor ? 'checked' : ''}>
-      <span>${s.name}${s.id === CFG.outdoor_sensor ? '<span class="tag">outdoor</span>' : ''}<small>${s.id}</small></span></label>`).join('')
-    : 'No temperature sensors with long-term statistics found.';
-  document.querySelectorAll('#sensors input').forEach(i => i.onchange = () => { refreshSeriesSelect(); redraw(); });
-
-  const today = new Date();
-  $('#t-end').value = iso(today);
-  $('#t-start').value = iso(addYears(today, -1));
-  $('#c-split').value = CFG.install_date || iso(today);
-  $('#e-split').value = CFG.install_date || iso(today);
-  let saved = {};
-  try { saved = JSON.parse(localStorage.getItem(RATES_KEY) || '{}'); } catch (_) {}
-  $('#e-erate').value = saved.e ?? (CFG.elec_rate_p || '');
-  $('#e-grate').value = saved.g ?? (CFG.gas_rate_p || '');
-  refreshSeriesSelect();
-  drawTimeline();
-})();
-
-function refreshSeriesSelect() {
-  const cur = $('#c-series').value;
-  $('#c-series').innerHTML = '<option value="__avg">House average</option>' +
-    indoorIds().map(id => `<option value="${id}">${nameOf(id)}</option>`).join('');
-  if ([...$('#c-series').options].some(o => o.value === cur)) $('#c-series').value = cur;
+function renderHeat() {
+  const d = DATA, eff = d.settings.boiler_efficiency, gran = HEAT_GRAN;
+  document.querySelectorAll('#heatGran button').forEach(b => b.classList.toggle('on', b.dataset.g === gran));
+  const unit = {day: 'a day', week: 'a week (daily average)', month: 'a month (daily average)'}[gran];
+  $('#heatSub').textContent = `Each dot is ${unit}. Gas dots show useful heat (gas × boiler efficiency); air-to-air dots show electricity used. The gap between the lines is the efficiency difference.` +
+    (gran === 'day' ? '' : ' Averaging smooths out day-to-day noise such as sunny days or days away.');
+  const r = {day: 2.6, week: 4.5, month: 7}[gran], op = {day: .55, week: .7, month: .8}[gran];
+  const sets = [
+    {color: css('--gas'), points: bucketPoints(tag(d.scatter.gas, 'gas'), gran), fit: d.models.gas ? {a: 0, b: d.models.gas.b * eff} : null, r, op},
+    {color: css('--ac'), points: bucketPoints(tag(d.scatter.ac, 'ac'), gran), fit: d.models.ac, r, op},
+  ];
+  sets.xLabel = gran === 'day' ? 'Heating degree days (colder →)' : 'Average heating degree days per day (colder →)';
+  scatter($('#scatter'), sets);
 }
+const TIP = $('#tip');
+function showTip(e) {
+  const t = e.target.closest && e.target.closest('[data-tip]');
+  if (!t) { TIP.style.display = 'none'; return; }
+  TIP.textContent = t.dataset.tip; TIP.style.display = 'block';
+  const w = TIP.offsetWidth, h = TIP.offsetHeight;
+  TIP.style.left = Math.min(e.clientX + 14, innerWidth - w - 8) + 'px';
+  TIP.style.top = (e.clientY + 14 + h > innerHeight ? e.clientY - h - 10 : e.clientY + 14) + 'px';
+}
+document.addEventListener('mousemove', showTip);
+document.addEventListener('click', showTip);
+document.querySelectorAll('#heatGran button').forEach(b => b.onclick = () => { HEAT_GRAN = b.dataset.g; renderHeat(); });
+
+document.querySelectorAll('#granularity button').forEach(b => b.onclick = () => { GRAN = b.dataset.g; renderCostChart(); });
+$('#range').onchange = e => { RANGE[GRAN] = +e.target.value; renderCostChart(); };
+
+async function load() {
+  const d = await (await fetch('api/dashboard')).json();
+  $('#subtitle').textContent = d.switch_date ? `Gas boiler until ${d.switch_date}, air-to-air after` : 'Gas boiler vs air-to-air';
+  $('#warnings').innerHTML = d.warnings.length ? `<div class="card warn"><ul style="margin:0;padding-left:18px">${d.warnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>` : '';
+  renderCards(d);
+  DATA = d;
+  renderCostChart();
+  renderHeat();
+  renderMonthly(d);
+  renderSources(d);
+  renderMethod(d);
+}
+
+$('#syncBtn').onclick = async e => {
+  e.target.disabled = true; e.target.textContent = 'Syncing…';
+  try { await fetch('api/sync', {method: 'POST'}); await load(); }
+  finally { e.target.disabled = false; e.target.textContent = 'Sync now'; }
+};
+$('#importForm').onsubmit = async e => {
+  e.preventDefault();
+  const r = await (await fetch('api/import', {method: 'POST', body: new FormData(e.target)})).json();
+  $('#importMsg').textContent = r.message; $('#importMsg').className = r.ok ? 'ok' : 'err';
+  if (r.ok) load();
+};
+load();
 </script>
 </body>
 </html>

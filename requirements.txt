@@ -1,0 +1,4 @@
+aiohttp>=3.9,<4
+ovoenergy>=3.0,<4
+PyYAML>=6.0
+tzdata

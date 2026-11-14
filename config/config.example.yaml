@@ -1,0 +1,60 @@
+# Copy to config/config.yaml and edit. Changes are picked up on the next sync (no restart needed).
+
+# First day the air-to-air system heats the house. Everything before is the "gas era".
+heating_switch_date: 2026-12-01
+
+# Used to fetch outdoor temperatures (Open-Meteo). A rough location is fine.
+location:
+  latitude: 51.45
+  longitude: -2.59
+
+# How far back to pull data. Defaults to ~15 months ago. Can be moved earlier later; the next sync fills the gap.
+backfill_from: 2025-01-01
+
+expected_scop: 3.5          # Panasonic's rated SCOP is higher; 3–4 is typical in real UK use
+boiler_efficiency: 0.85     # older combi ~0.80, modern condensing ~0.88
+hdd_base_c: 15.5
+
+gas:
+  # Gas is being disconnected: hot water moves to the electric shower + undersink heaters,
+  # so the comparison covers heating + hot water + the gas standing charge.
+  keep_supply: false
+  hot_water_electric_factor: 0.85   # electric kWh per gas kWh of hot water replaced (~boiler efficiency)
+  # non_heating_kwh_per_day: 6      # gas used for hot water + cooking. Leave unset to estimate from summer data.
+
+ovo:
+  enabled: true
+  # account_id: 1234567     # only needed if you have more than one OVO account
+
+home_assistant:
+  enabled: true
+  url: http://homeassistant.local:8123
+  gas_unit: kWh             # or m3 if your gas sensor reports volume
+  # Statistic ids are usually the entity ids. Find them in Developer tools > Statistics.
+  statistics:
+    electricity: []         # e.g. sensor.electricity_meter_energy_consumption (only used if OVO data is missing)
+    gas: []
+    # Panasonic Comfort Cloud (panasonic_cc integration, "Enable daily energy sensors" option).
+    # Those sensors reset at midnight; if they have no state_class, use mode: daily_max.
+    ac:
+      # - sensor.living_room_daily_heating_energy
+      # - id: sensor.bedroom_daily_heating_energy
+      #   mode: daily_max
+    ac_cooling:
+      # - sensor.living_room_daily_cooling_energy
+    # Electric shower + undersink heaters, if you can meter them (e.g. a CT clamp on the shower circuit).
+    # Without this, hot water electricity is estimated from last year's gas hot water use.
+    hot_water: []
+    solar: []               # next year: total solar generation (kWh)
+    export: []              # next year: grid export (kWh)
+    indoor_temp: []         # e.g. a Tapo or Panasonic indoor temperature sensor, to compare comfort
+
+# Unit rate £/kWh, standing charge £/day. Daily rates reported by OVO take priority;
+# these fill gaps and set "today's price" for projections. Add a line whenever your tariff changes.
+tariffs:
+  electricity:
+    - { from: 2025-10-01, unit_rate: 0.2650, standing_charge: 0.5300 }
+  gas:
+    - { from: 2025-10-01, unit_rate: 0.0630, standing_charge: 0.3200 }
+  export:
+    - { from: 2027-01-01, unit_rate: 0.15 }
