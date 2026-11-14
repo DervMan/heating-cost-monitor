@@ -60,6 +60,12 @@ def main():
     assert abs(m["non_heating_gas_kwh_per_day"] - 7.0) < 1.0, "hot water baseline recovered"
     assert abs(p["effective_cop"] - 3.2) < 0.3, "COP recovered"
     assert len(out["calendar"]) == 12
+    # Electricity baseline: synthetic house uses 8 + 0.08 × HDD kWh/day before the switch.
+    eb = out["electricity_baseline"]
+    assert abs(eb["fixed_kwh_per_day"] - 8.0) < 0.8 and abs(eb["kwh_per_hdd"] - 0.08) < 0.05, eb
+    assert eb["weather_adjusted"] and 2800 < eb["annual_kwh"] < 3500, eb
+    # Gas kept: whole-house electricity above baseline ≈ the air-to-air's own use.
+    assert abs(out["since_switch"]["elec_extra_kwh"] - out["since_switch"]["ac_kwh"]) < 0.1 * out["since_switch"]["ac_kwh"] + 30
 
     # Pre-switch scenario (today): no AC data, expected projection only.
     cfg2 = dict(cfg, heating_switch_date=date(2026, 12, 1))

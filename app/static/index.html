@@ -99,6 +99,21 @@ details summary{cursor:pointer;color:var(--muted)}
 </div>
 
 <div class="card">
+  <div class="row" style="justify-content:space-between">
+    <h2>Electricity vs the gas-era baseline</h2>
+    <div class="seg" id="elecGran">
+      <button data-g="day" class="on">Daily</button><button data-g="week">Weekly</button><button data-g="month">Monthly</button>
+    </div>
+  </div>
+  <div class="sub" id="elecSub"></div>
+  <div class="legend">
+    <span><span class="sw" style="background:var(--exp)"></span>Before the switch: whole-house kWh/day (the baseline)</span>
+    <span><span class="sw" style="background:var(--ac)"></span>After the switch: whole-house kWh/day</span>
+  </div>
+  <div class="chart" id="elecScatter"></div>
+</div>
+
+<div class="card">
   <h2>Monthly detail</h2>
   <div class="tablewrap"><table id="monthly"></table></div>
 </div>
@@ -172,6 +187,15 @@ function renderCards(d) {
         s.gas_equiv_cost != null ? `Gas would have cost ${gbp(s.gas_equiv_cost)} in the same weather (${delta > 0 ? '+' : '−'}${gbp(Math.abs(delta))})` : ''));
     }
   }
+  const eb = d.electricity_baseline;
+  out.push(card('Electricity baseline', eb ? num(eb.avg_kwh_per_day, 1) + ' kWh/day' : '–',
+    eb ? `Whole-house use before the switch: ${num(eb.annual_kwh)} kWh a year, ${gbp(eb.annual_cost)} at ${pe}${eb.weather_adjusted ? ', typical weather' : ''}` : 'Shown once there are electricity readings from before the switch'));
+  if (s && s.elec_days) {
+    const x = s.elec_extra_kwh, c = s.elec_extra_cost;
+    out.push(card(`Electricity vs baseline (${s.elec_days} days)`, `${x > 0 ? '+' : '−'}${num(Math.abs(x))} kWh`,
+      `${c > 0 ? '+' : '−'}${gbp(Math.abs(c))} against what the gas-era model expected in the same weather` +
+      (set.keep_gas_supply ? '' : '. Includes electric hot water.'), c > 0 ? 'bad' : 'good'));
+  }
   out.push(card('Effective efficiency', p.effective_cop != null ? num(p.effective_cop, 1) + '×' : '–',
     p.effective_cop != null ? 'kWh of heat per kWh of electricity' : 'Shown once there are 14+ air-to-air days'));
   out.push(card('Hot water and cooking',
@@ -230,11 +254,11 @@ function scatter(el, sets) {
 }
 
 function renderMonthly(d) {
-  const head = '<tr><th>Month</th><th>System</th><th>Degree days</th><th>Gas kWh</th><th>Elec kWh</th><th>AC heat kWh</th><th>Hot water kWh</th><th>Heating £</th><th>£ per degree day</th><th>Whole bill £</th><th>Indoor °C</th></tr>';
+  const head = '<tr><th>Month</th><th>System</th><th>Degree days</th><th>Gas kWh</th><th>Elec kWh</th><th>AC heat kWh</th><th>Hot water kWh</th><th>Elec vs baseline kWh</th><th>Heating £</th><th>£ per degree day</th><th>Whole bill £</th><th>Indoor °C</th></tr>';
   const rows = d.monthly.slice().reverse().map(m => {
     const [y, mo] = m.month.split('-');
     const pill = `<span class="pill" style="background:${m.era === 'gas' ? css('--gas') : css('--ac')}">${m.era === 'gas' ? 'Gas' : 'Air-to-air'}</span>`;
-    return `<tr><td>${MONTHS[+mo - 1]} ${y}${m.days < 28 ? ` <span class="sub">(${m.days}d)</span>` : ''}</td><td>${pill}</td><td>${num(m.hdd)}</td><td>${num(m.gas_kwh)}</td><td>${num(m.elec_kwh)}</td><td>${num(m.ac_kwh)}</td><td>${m.hw_kwh ? num(m.hw_kwh) : '–'}</td><td>${gbp2(m.heating_cost)}</td><td>${m.cost_per_hdd != null ? gbp2(m.cost_per_hdd) : '–'}</td><td>${gbp2(m.total_cost)}</td><td>${m.indoor_avg ?? '–'}</td></tr>`;
+    return `<tr><td>${MONTHS[+mo - 1]} ${y}${m.days < 28 ? ` <span class="sub">(${m.days}d)</span>` : ''}</td><td>${pill}</td><td>${num(m.hdd)}</td><td>${num(m.gas_kwh)}</td><td>${num(m.elec_kwh)}</td><td>${num(m.ac_kwh)}</td><td>${m.hw_kwh ? num(m.hw_kwh) : '–'}</td><td>${m.era === 'ac' && m.elec_cmp_kwh ? (m.elec_cmp_kwh - m.elec_base_kwh > 0 ? '+' : '−') + num(Math.abs(m.elec_cmp_kwh - m.elec_base_kwh)) : '–'}</td><td>${gbp2(m.heating_cost)}</td><td>${m.cost_per_hdd != null ? gbp2(m.cost_per_hdd) : '–'}</td><td>${gbp2(m.total_cost)}</td><td>${m.indoor_avg ?? '–'}</td></tr>`;
   });
   $('#monthly').innerHTML = head + rows.join('');
 }
@@ -253,7 +277,7 @@ function renderMethod(d) {
     <p>Degree days use a ${s.hdd_base_c}°C base and Open-Meteo temperatures for your location. Reference weather year: ${r ? `${r.start} to ${r.end} (${num(r.hdd)} degree days)` : 'not available yet'}.</p>
     <p>Gas model: ${fit(m.gas, 'kWh gas/day')}. The fixed part (${num(m.non_heating_gas_kwh_per_day, 1)} kWh/day) is treated as hot water and cooking; the rest is heating. Boiler efficiency assumed ${s.boiler_efficiency * 100}%.</p>
     <p>Air-to-air model: ${fit(m.ac, 'kWh electricity/day')}. Days above ${s.cooling_threshold_c}°C count as cooling unless a separate cooling sensor is configured.</p>
-    <p>Projections use today's unit rates for both fuels so price changes don't distort the comparison. With the gas disconnected, the comparison covers everything gas used to do: heating, hot water/cooking (now the electric shower and undersink heaters, assumed to need ${s.hot_water_electric_factor} kWh of electricity per kWh of gas unless measured) and the gas standing charge. Once solar is fitted, air-to-air kWh covered by solar are costed at your export rate (the income you gave up), not the import rate.</p>`;
+    <p>Electricity baseline: whole-house electricity before the switch is fitted against degree days${m.electricity_gas_era ? ` (${fit(m.electricity_gas_era, 'kWh electricity/day')})` : ''}. After the switch, the model gives the electricity the house would have used in that day's weather without the air-to-air; anything above it is extra. If you add solar, whole-house import will fall for reasons unrelated to heating, so judge the air-to-air from its own sensor then.</p>\n    <p>Projections use today's unit rates for both fuels so price changes don't distort the comparison. With the gas disconnected, the comparison covers everything gas used to do: heating, hot water/cooking (now the electric shower and undersink heaters, assumed to need ${s.hot_water_electric_factor} kWh of electricity per kWh of gas unless measured) and the gas standing charge. Once solar is fitted, air-to-air kWh covered by solar are costed at your export rate (the income you gave up), not the import rate.</p>`;
 }
 
 let DATA = null, GRAN = 'month', RANGE = {};
@@ -345,7 +369,7 @@ function stackedBars(el, cats, groups, titles) {
 }
 
 let HEAT_GRAN = 'day';
-const HEAT_LABEL = {gas: 'Heat from gas boiler', ac: 'Air-to-air electricity'};
+const HEAT_LABEL = {gas: 'Heat from gas boiler', ac: 'Air-to-air electricity', elec_gas: 'Whole-house electricity (before switch)', elec_ac: 'Whole-house electricity (after switch)'};
 const tag = (pts, src) => { const out = pts.map(p => [p[0], p[1], p[2], null, src]); out.src = src; return out; };
 // Weekly/monthly points are averages per day, so the axes and trend lines stay the same; they just smooth out the noise.
 function bucketPoints(points, gran) {
@@ -376,6 +400,23 @@ function renderHeat() {
   sets.xLabel = gran === 'day' ? 'Heating degree days (colder →)' : 'Average heating degree days per day (colder →)';
   scatter($('#scatter'), sets);
 }
+let ELEC_GRAN = 'day';
+function renderElec() {
+  const d = DATA, eb = d.electricity_baseline, gran = ELEC_GRAN;
+  document.querySelectorAll('#elecGran button').forEach(b => b.classList.toggle('on', b.dataset.g === gran));
+  const unit = {day: 'a day', week: 'a week (daily average)', month: 'a month (daily average)'}[gran];
+  const fit = d.models.electricity_gas_era;
+  $('#elecSub').textContent = `Each dot is ${unit} of whole-house electricity. The line is the pre-switch baseline: ` +
+    (fit ? `${num(Math.max(0, fit.a), 1)} kWh/day plus ${num(fit.b, 2)} kWh per degree day (R² ${num(fit.r2, 2)}). ` : 'not fitted yet (needs 14+ days with temperatures). ') +
+    'Dots above the line after the switch are extra electricity, which is the air-to-air' + (d.settings.keep_gas_supply ? '.' : ' plus electric hot water.');
+  const r = {day: 2.6, week: 4.5, month: 7}[gran], op = {day: .55, week: .7, month: .8}[gran];
+  const sets = [
+    {color: css('--exp'), points: bucketPoints(tag(d.scatter.elec_gas || [], 'elec_gas'), gran), fit: fit ? {a: fit.a, b: fit.b} : null, r, op},
+    {color: css('--ac'), points: bucketPoints(tag(d.scatter.elec_ac || [], 'elec_ac'), gran), r, op},
+  ];
+  sets.xLabel = gran === 'day' ? 'Heating degree days (colder →)' : 'Average heating degree days per day (colder →)';
+  scatter($('#elecScatter'), sets);
+}
 const TIP = $('#tip');
 function showTip(e) {
   const t = e.target.closest && e.target.closest('[data-tip]');
@@ -388,6 +429,7 @@ function showTip(e) {
 document.addEventListener('mousemove', showTip);
 document.addEventListener('click', showTip);
 document.querySelectorAll('#heatGran button').forEach(b => b.onclick = () => { HEAT_GRAN = b.dataset.g; renderHeat(); });
+document.querySelectorAll('#elecGran button').forEach(b => b.onclick = () => { ELEC_GRAN = b.dataset.g; renderElec(); });
 
 document.querySelectorAll('#granularity button').forEach(b => b.onclick = () => { GRAN = b.dataset.g; renderCostChart(); });
 $('#range').onchange = e => { RANGE[GRAN] = +e.target.value; renderCostChart(); };
@@ -400,6 +442,7 @@ async function load() {
   DATA = d;
   renderCostChart();
   renderHeat();
+  renderElec();
   renderMonthly(d);
   renderSources(d);
   renderMethod(d);

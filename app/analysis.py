@@ -151,6 +151,10 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
         gu, gs = tariffs.get("gas", r["d"])
         xu, _ = tariffs.get("export", r["d"])
         eu, gu, xu = eu or 0.0, gu or 0.0, xu or 0.0
+        r["eu"] = eu
+        # Expected whole-house electricity for this day's weather, from the gas-era fit.
+        r["elec_baseline"] = (max(0.0, elec_fit["a"] + elec_fit["b"] * r["hdd"])
+                              if elec_fit and r["hdd"] is not None else None)
         gas = r["gas"]
         heat_gas = max(0.0, gas - non_heat_gas) if gas is not None else 0.0
 
@@ -276,6 +280,40 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
             eq = [r["gas_all_in_equiv"] for r in ac_days if r.get("gas_all_in_equiv") is not None]
             since["gas_all_in_equiv"] = sum(eq) if eq else None
 
+    # ---------- electricity baseline: what the house used before the switch, weather-adjusted
+    elec_base = None
+    gas_elec = [r["electricity"] for r in gas_days if r["electricity"] is not None]
+    if gas_elec:
+        avg_day = sum(gas_elec) / len(gas_elec)
+        if elec_fit and ref:
+            annual_kwh = max(0.0, elec_fit["a"] * 365 + elec_fit["b"] * ref["hdd"])
+        else:
+            annual_kwh = avg_day * 365
+        elec_base = {
+            "days": len(gas_elec),
+            "avg_kwh_per_day": avg_day,
+            "fixed_kwh_per_day": max(0.0, elec_fit["a"]) if elec_fit else None,
+            "kwh_per_hdd": elec_fit["b"] if elec_fit else None,
+            "r2": elec_fit["r2"] if elec_fit else None,
+            "annual_kwh": annual_kwh,
+            "annual_cost": annual_kwh * now_e,
+            "weather_adjusted": bool(elec_fit and ref),
+        }
+        if since:
+            cmp_days = [r for r in ac_days if r["elec_baseline"] is not None and r["electricity"] is not None]
+            if cmp_days:
+                actual = sum(r["electricity"] for r in cmp_days)
+                expected = sum(r["elec_baseline"] for r in cmp_days)
+                since["elec_days"] = len(cmp_days)
+                since["elec_kwh"] = actual
+                since["elec_baseline_kwh"] = expected
+                since["elec_extra_kwh"] = actual - expected
+                since["elec_extra_cost"] = sum((r["electricity"] - r["elec_baseline"]) * r["eu"] for r in cmp_days)
+    elif ac_days or gas_days:
+        warnings.append("No electricity readings in the gas era, so there is no electricity baseline yet.")
+    if elec_base and not elec_fit:
+        warnings.append("Electricity baseline is a simple average: it needs 14+ gas-era days with temperatures to adjust for weather.")
+
     # ---------- monthly rollup
     months: dict = {}
     for r in days:
@@ -283,7 +321,8 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
         mo = months.setdefault(k, {"month": k, "days": 0, "gas_days": 0, "hdd": 0.0, "gas_kwh": 0.0,
                                    "elec_kwh": 0.0, "ac_kwh": 0.0, "cool_kwh": 0.0, "solar_kwh": 0.0,
                                    "heating_cost": 0.0, "heating_cost_now": 0.0, "total_cost": 0.0,
-                                   "heat_gas_kwh": 0.0, "hw_kwh": 0.0, "indoor": []})
+                                   "heat_gas_kwh": 0.0, "hw_kwh": 0.0, "indoor": [],
+                                   "elec_cmp_kwh": 0.0, "elec_base_kwh": 0.0})
         mo["days"] += 1
         mo["gas_days"] += r["era"] == "gas"
         mo["hdd"] += r["hdd"] or 0
@@ -294,6 +333,9 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
         mo["solar_kwh"] += r["solar"] or 0
         mo["heat_gas_kwh"] += r["heat_gas"]
         mo["hw_kwh"] += r["hot_water"] or 0
+        if r["elec_baseline"] is not None and r["electricity"] is not None:
+            mo["elec_cmp_kwh"] += r["electricity"]
+            mo["elec_base_kwh"] += r["elec_baseline"]
         mo["heating_cost"] += r["heating_cost"]
         mo["heating_cost_now"] += r["heating_cost_now"]
         mo["total_cost"] += r["total_cost"]
@@ -349,7 +391,13 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
                        "aa": None if aa is None else round(aa, 3), "ae": None if ae is None else round(ae, 3)})
 
     # ---------- scatter: heating energy per day vs HDD
+    def elec_pts(rs):
+        return [[round(r["hdd"], 2), round(r["electricity"], 2), r["date"]] for r in rs
+                if r["hdd"] is not None and r["electricity"] is not None]
+
     scatter = {
+        "elec_gas": elec_pts(gas_days),
+        "elec_ac": elec_pts(ac_days),
         "gas": [[round(r["hdd"], 2), round(r["heat_gas"] * eff, 2), r["date"]] for r in gas_days
                 if r["hdd"] is not None and r["gas"] is not None],
         "ac": [[round(r["hdd"], 2), round(r["ac_heat"], 2), r["date"]] for r in ac_days
@@ -383,6 +431,8 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
             "gas_heat_kwh_per_hdd": rnd(gas_fit["b"] * eff, 3) if gas_fit else None,
             "ac_kwh_per_hdd": rnd(ac_fit["b"], 3) if ac_fit else None,
         },
+        "electricity_baseline": ({k: (rnd(v, 3) if isinstance(v, float) else v) for k, v in elec_base.items()}
+                                 if elec_base else None),
         "reference_year": ref,
         "projection": {k: (rnd(v) if isinstance(v, float) else v) for k, v in proj.items()},
         "since_switch": {k: (rnd(v) if isinstance(v, float) else v) for k, v in since.items()} if since else None,
