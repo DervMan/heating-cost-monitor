@@ -64,6 +64,10 @@ def main():
     eb = out["electricity_baseline"]
     assert abs(eb["fixed_kwh_per_day"] - 8.0) < 0.8 and abs(eb["kwh_per_hdd"] - 0.08) < 0.05, eb
     assert eb["weather_adjusted"] and 2800 < eb["annual_kwh"] < 3500, eb
+    # Monthly chart lines: total grid electricity at the prices actually paid, per calendar month.
+    cal = {c["cal"]: c for c in out["calendar"]}
+    assert all(c.get("grid_base", 0) > 0 for c in cal.values() if "grid_base" in c) and len(cal) >= 6
+    assert any("grid_ac" in c for c in cal.values())
     # Gas kept: whole-house electricity above baseline ≈ the air-to-air's own use.
     assert abs(out["since_switch"]["elec_extra_kwh"] - out["since_switch"]["ac_kwh"]) < 0.1 * out["since_switch"]["ac_kwh"] + 30
 

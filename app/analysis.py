@@ -10,6 +10,7 @@ annual comparison, regardless of how cold either winter was or how prices moved.
 """
 from __future__ import annotations
 
+import calendar as _cal
 from collections import defaultdict
 from datetime import date, timedelta
 
@@ -322,12 +323,17 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
                                    "elec_kwh": 0.0, "ac_kwh": 0.0, "cool_kwh": 0.0, "solar_kwh": 0.0,
                                    "heating_cost": 0.0, "heating_cost_now": 0.0, "total_cost": 0.0,
                                    "heat_gas_kwh": 0.0, "hw_kwh": 0.0, "indoor": [],
-                                   "elec_cmp_kwh": 0.0, "elec_base_kwh": 0.0})
+                                   "elec_cmp_kwh": 0.0, "elec_base_kwh": 0.0,
+                                   "elec_n": 0, "elec_cost": 0.0})
         mo["days"] += 1
         mo["gas_days"] += r["era"] == "gas"
         mo["hdd"] += r["hdd"] or 0
         mo["gas_kwh"] += r["gas"] or 0
         mo["elec_kwh"] += r["electricity"] or 0
+        if r["electricity"] is not None:
+            # What was actually paid: each day's kWh at that day's own rate, so history never re-prices.
+            mo["elec_n"] += 1
+            mo["elec_cost"] += r["electricity"] * r["eu"]
         mo["ac_kwh"] += r["ac_heat"]
         mo["cool_kwh"] += r["ac_cool"]
         mo["solar_kwh"] += r["solar"] or 0
@@ -365,6 +371,16 @@ def build(cfg: dict, db, today: date | None = None) -> dict:
             cost_now = mo["ac_kwh"] * now_e
             by_cal[cal]["ac_adj"] = cost_now / mo["hdd"] * ref_month_hdd.get(cal, mo["hdd"])
             by_cal[cal]["month_ac"] = mo["month"]
+        # Total grid electricity at the prices actually paid (not today's), for the chart's lines.
+        n_cal = _cal.monthrange(int(mo["month"][:4]), cal)[1]
+        if mo["era"] == "gas" and in_ref and mo["elec_n"] == mo["days"]:
+            by_cal[cal]["grid_base"] = mo["elec_cost"]
+            by_cal[cal]["grid_base_kwh"] = mo["elec_kwh"]
+        elif mo["era"] == "ac" and mo["elec_n"]:
+            by_cal[cal]["grid_ac"] = mo["elec_cost"]
+            by_cal[cal]["grid_ac_kwh"] = mo["elec_kwh"]
+            by_cal[cal]["grid_ac_days"] = mo["elec_n"]
+            by_cal[cal]["grid_ac_of"] = n_cal
     order = [((first_full.month - 1 + i) % 12) + 1 for i in range(12)]
     calendar = [{"cal": c, **by_cal[c]} for c in order if c in by_cal]
 

@@ -9,8 +9,8 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='g' x1='0' y1='1' x2='0' y2='0'><stop offset='0' stop-color='%23d9382b'/><stop offset='1' stop-color='%23f5a623'/></linearGradient></defs><path fill='url(%23g)' d='M32 2c3 11 18 18 18 35a18 18 0 0 1-36 0c0-8 4-14 8-18 0 7 3 10 6 11-3-10 2-20 4-28z'/><path fill='%23ffd56b' d='M32 30c2 5 7 8 7 14a7 7 0 0 1-14 0c0-6 5-9 7-14z'/></svg>">
 <style>
-:root{--bg:#f6f7f5;--card:#fff;--ink:#1d2321;--muted:#66706b;--line:#e3e6e3;--gas:#d9822b;--ac:#2a7fbf;--exp:#9aa7b0;--good:#1f8a4c;--bad:#c0392b}
-@media (prefers-color-scheme:dark){:root{--bg:#111514;--card:#1a201e;--ink:#e8ece9;--muted:#9aa5a0;--line:#2b3330;--gas:#f0a050;--ac:#5aa9e6;--exp:#6c7a84;--good:#4cc27e;--bad:#ef6b5b}}
+:root{--bg:#f6f7f5;--card:#fff;--ink:#1d2321;--muted:#66706b;--line:#e3e6e3;--gas:#d9822b;--ac:#2a7fbf;--exp:#9aa7b0;--good:#1f8a4c;--bad:#c0392b;--grid:#7058c8}
+@media (prefers-color-scheme:dark){:root{--bg:#111514;--card:#1a201e;--ink:#e8ece9;--muted:#9aa5a0;--line:#2b3330;--gas:#f0a050;--ac:#5aa9e6;--exp:#6c7a84;--good:#4cc27e;--bad:#ef6b5b;--grid:#a79bf2}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
@@ -205,9 +205,9 @@ function renderCards(d) {
   $('#cards').innerHTML = out.join('');
 }
 
-function barChart(el, cats, series) {
+function barChart(el, cats, series, lines = []) {
   const W = Math.max(600, cats.length * 70), H = 260, L = 48, B = 28, T = 10;
-  const max = Math.max(1, ...series.flatMap(s => s.values.filter(v => v != null)));
+  const max = Math.max(1, ...[...series, ...lines].flatMap(s => s.values.filter(v => v != null)));
   const step = niceStep(max / 4), top = Math.ceil(max / step) * step;
   const y = v => T + (H - T - B) * (1 - v / top);
   const gw = (W - L - 10) / cats.length, bw = Math.min(18, (gw - 10) / series.length);
@@ -222,6 +222,24 @@ function barChart(el, cats, series) {
       g += `<rect x="${x0 + j * bw}" y="${y(v)}" width="${bw - 2}" height="${y(0) - y(v)}" rx="2" fill="${s.color}" style="cursor:pointer" data-tip="${esc(cats[i] + '\n' + s.name + ': £' + v.toFixed(2))}"/>`;
     });
     g += `<text x="${L + i * gw + gw / 2}" y="${H - 8}" text-anchor="middle">${c}</text>`;
+  });
+  // Lines sit on the same £ axis, one point per category. Partial months get a hollow dot and no connecting line.
+  lines.forEach(ln => {
+    const cx = i => L + i * gw + gw / 2;
+    let seg = [];
+    const flush = () => { if (seg.length > 1) g += `<polyline points="${seg.join(' ')}" fill="none" stroke="${ln.color}" stroke-width="2.2"${ln.dash ? ` stroke-dasharray="${ln.dash}"` : ''}/>`; seg = []; };
+    cats.forEach((c, i) => {
+      const v = ln.values[i];
+      if (v == null || (ln.partial && ln.partial[i])) { flush(); return; }
+      seg.push(`${cx(i)},${y(v)}`);
+    });
+    flush();
+    cats.forEach((c, i) => {
+      const v = ln.values[i];
+      if (v == null) return;
+      const part = ln.partial && ln.partial[i];
+      g += `<circle cx="${cx(i)}" cy="${y(v)}" r="${part ? 4 : 3.5}" fill="${part ? css('--card') : ln.color}" stroke="${ln.color}" stroke-width="2" style="cursor:pointer" data-tip="${esc(cats[i] + '\n' + ln.name + ': £' + v.toFixed(2) + (ln.kwh && ln.kwh[i] != null ? '\n' + Math.round(ln.kwh[i]) + ' kWh' : '') + (ln.note && ln.note[i] ? '\n' + ln.note[i] : ''))}"/>`;
+    });
   });
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="min-width:${Math.min(W, 560)}px">${g}</svg>`;
 }
@@ -283,6 +301,7 @@ function renderMethod(d) {
 let DATA = null, GRAN = 'month', RANGE = {};
 const RANGES = {day: [[30, 'Last 30 days'], [60, 'Last 60 days'], [90, 'Last 90 days']],
                 week: [[13, 'Last 13 weeks'], [26, 'Last 26 weeks'], [52, 'Last 52 weeks'], [104, 'Last 2 years']]};
+const lsw = (c, label, dash) => `<span><span style="display:inline-block;width:18px;border-top:2px ${dash ? 'dashed' : 'solid'} ${c};margin-right:5px;vertical-align:3px"></span>${label}</span>`;
 const sw = (c, label, pale) => `<span><span class="sw" style="background:${c};${pale ? 'opacity:.4' : ''}"></span>${label}</span>`;
 
 function weekStart(ds) {          // Monday of the ISO week, as YYYY-MM-DD
@@ -299,14 +318,24 @@ function renderCostChart() {
   if (GRAN === 'month') {
     sel.style.display = 'none';
     $('#costTitle').textContent = "Heating cost by month, at today's prices";
-    $('#costSub').textContent = "Gas year vs air-to-air. Air-to-air months are scaled to the gas year's weather so a mild or cold month doesn't skew the comparison.";
-    $('#costLegend').innerHTML = sw(css('--gas'), 'Gas (reference year)') + sw(css('--exp'), `Air-to-air, expected (SCOP ${d.settings.expected_scop})`) + sw(css('--ac'), 'Air-to-air, actual (weather-adjusted)');
+    const cal = d.calendar, hasBase = cal.some(c => c.grid_base != null), hasAc = cal.some(c => c.grid_ac != null);
+    $('#costSub').textContent = "Gas year vs air-to-air. Air-to-air months are scaled to the gas year's weather so a mild or cold month doesn't skew the comparison." +
+      (hasBase || hasAc ? " The purple lines are total grid electricity for the whole house, at the prices you actually paid, so they never re-price. The bars use today's prices." : '');
+    $('#costLegend').innerHTML = sw(css('--gas'), 'Gas (reference year)') + sw(css('--exp'), `Air-to-air, expected (SCOP ${d.settings.expected_scop})`) + sw(css('--ac'), 'Air-to-air, actual (weather-adjusted)') +
+      (hasBase ? lsw(css('--grid'), 'Total grid electricity, gas year', true) : '') + (hasAc ? lsw(css('--grid'), 'Total grid electricity, after switch') : '');
     $('#costTotals').textContent = '';
-    barChart($('#calChart'), d.calendar.map(c => MONTHS[c.cal - 1]), [
-      {name: 'Gas', color: css('--gas'), values: d.calendar.map(c => c.gas_now)},
-      {name: 'Air-to-air expected', color: css('--exp'), values: d.calendar.map(c => c.ac_expected)},
-      {name: 'Air-to-air actual', color: css('--ac'), values: d.calendar.map(c => c.ac_adj)},
-    ]);
+    const lines = [];
+    if (hasBase) lines.push({name: 'Total grid electricity, gas year', color: css('--grid'), dash: '6 4',
+      values: cal.map(c => c.grid_base), kwh: cal.map(c => c.grid_base_kwh)});
+    if (hasAc) lines.push({name: 'Total grid electricity, after switch', color: css('--grid'),
+      values: cal.map(c => c.grid_ac), kwh: cal.map(c => c.grid_ac_kwh),
+      partial: cal.map(c => c.grid_ac != null && c.grid_ac_days < c.grid_ac_of),
+      note: cal.map(c => c.grid_ac != null && c.grid_ac_days < c.grid_ac_of ? `So far: ${c.grid_ac_days} of ${c.grid_ac_of} days` : '')});
+    barChart($('#calChart'), cal.map(c => MONTHS[c.cal - 1]), [
+      {name: 'Gas', color: css('--gas'), values: cal.map(c => c.gas_now)},
+      {name: 'Air-to-air expected', color: css('--exp'), values: cal.map(c => c.ac_expected)},
+      {name: 'Air-to-air actual', color: css('--ac'), values: cal.map(c => c.ac_adj)},
+    ], lines);
     return;
   }
   sel.style.display = '';
